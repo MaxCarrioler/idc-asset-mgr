@@ -2,6 +2,22 @@
 
 基于 **PigX 4.1.0 开源版**微服务架构的 IDC 基础设施管理系统，以**服务器**为核心管理单位，支持 7 类配件 CRUD、操作记录追踪、元数据自定义管理、硬件资源汇总统计、独立备件库存，以及**配件中心**调取审批/出库流转。权限采用 PigX 生产级 RBAC（OAuth2 + `sys_role`/`sys_menu`）。
 
+## 仓库与版本
+
+| 仓库 | 地址 | 说明 |
+|------|------|------|
+| IDC-Manager（本仓库） | https://github.com/MaxCarrioler/idc-asset-mgr | 业务代码、前端、Docker；当前发布 **v1.0.0** |
+| PigX 配套 fork | https://github.com/MaxCarrioler/pig | 含用户中心等 IDC 补丁；分支 / tag **`idc-v1.0.0`**（基于 PigX 4.1.0） |
+
+本项目通过符号链接引用同级目录 `../pig` 中的 `pig-gateway` / `pig-auth` / `pig-upms` 等。完整功能（注册审批、角色护栏等）需使用上述 fork，而非上游原版。
+
+```bash
+# 同级目录克隆（推荐）
+cd /path/to/workspace
+git clone -b v1.0.0 https://github.com/MaxCarrioler/idc-asset-mgr.git IDC-Manager
+git clone -b idc-v1.0.0 https://github.com/MaxCarrioler/pig.git
+```
+
 ## 系统架构
 
 ```
@@ -24,7 +40,7 @@
         └──────────┘ └──────────┘ └──────────┘ └──────────┘
 ```
 
-> PigX 平台代码位于同级目录 `../pig`（4.1.0），本项目通过符号链接引用 `pig-gateway` 等模块。IDC 业务代码在 `pig-dc/` 下。身份权限在 MySQL（`pig` 库），业务数据在 PostgreSQL。
+> PigX 平台代码位于同级目录 `../pig`（推荐 tag `idc-v1.0.0`），本项目通过符号链接引用 `pig-gateway` 等模块。IDC 业务代码在 `pig-dc/` 下。身份权限在 MySQL（`pig` 库），业务数据在 PostgreSQL。
 
 ## 模块说明
 
@@ -71,9 +87,10 @@
 | 服务器列表 | 服务器分页列表、搜索、新增/编辑/删除 |
 | 数据统计 | Region / 服务器类型 / CPU 架构多维度筛选，硬件资源汇总表格 |
 | 元数据管理 | 服务器类型、CPU 架构等元数据自定义增删改查 |
-| 备件统计 | 按规格种类汇总备件数量，支持种类与明细 CRUD |
-| 配件中心 | 调取申请 → 选定序列号审批 → 出库（来源服务器下拉：真实序列号或「无」）→ 流转记录（现役服务器） |
+| 备件统计 | 按规格种类汇总备件数量，支持种类与明细 CRUD；出库后与配件中心联动（在库减量 / 明细状态） |
+| 配件中心 | 调取申请 → 选定序列号审批 → 出库（来源服务器：真实序列号或「无」）→ 流转记录（**现役服务器**）→ **导出 Excel** |
 | 用户中心 | （仅超管）页内 Tab：用户管理（审批/注销/赋角色）、角色管理（CRUD/授权） |
+| 注册页 | 访客自助注册（待审批，不可登录） |
 
 ### 元数据管理
 
@@ -110,6 +127,15 @@
   - 字段：序列号（必填）、厂商/品牌、规格摘要、存放位置、备注
   - 同一种类下序列号不可重复
 - **内置备件种类示例**：1.8T 硬盘、8T 硬盘、4T 硬盘、Intel Xeon Gold 6330、32GB DDR4 内存、10G 四口网卡、1400W 电源
+- **与配件中心联动**：出库时对选中备件执行 `OUT`、在库数量减量，明细状态变为「已出库」；流转记录中的「现役服务器」取自最近一次出库目标
+
+### 配件中心
+
+页内 Tab：调取申请、待审批、流转记录。
+
+- **申请**：普通用户提交调取申请并选择备件
+- **审批 / 出库**：配件管理员选定序列号后审批；出库时为每个备件选择来源服务器（真实序列号或「无」）
+- **流转记录**：展示来源服务器与现役服务器；支持 **导出 Excel**（`xlsx`）
 
 ### 配件详情（二级页面）
 
@@ -136,7 +162,7 @@
 | MySQL | 8.0 | PigX 身份权限库 `pig`（用户/角色/菜单/OAuth） |
 | Nacos | 2.4.3 | standalone 模式（服务发现） |
 | Redis | 7.x | OAuth token / 网关；`start-local.sh` 可自动启动用户目录 Redis |
-| PigX 源码 | 4.1.0 | 克隆到 `../pig`，与 IDC-Manager 同级目录 |
+| PigX 源码 | 4.1.0（`idc-v1.0.0`） | 克隆到 `../pig`，与 IDC-Manager 同级；推荐 [MaxCarrioler/pig](https://github.com/MaxCarrioler/pig) |
 
 ---
 
@@ -145,6 +171,9 @@
 ### 方式 A：Docker 一键部署（推荐用于演示/部署）
 
 ```bash
+# 确保同级已有 ../pig（见上文「仓库与版本」）
+cd IDC-Manager
+
 # 首次：安装 Docker 并加入 docker 组
 sudo scripts/install-docker.sh
 # 重新登录后执行
@@ -165,14 +194,17 @@ docker compose down -v     # 停止并清空数据库
 
 ### 方式 B：本地单机启动（推荐用于开发调试）
 
-#### 0. 准备 PigX 平台源码
+#### 0. 准备源码布局
 
 ```bash
-cd ..
-# 推荐使用本项目配套 fork（含用户中心等 IDC 补丁）
-git clone -b idc-v1.0.0 https://github.com/MaxCarrioler/pig.git
-# 或上游原版：git clone -b 4.1.0 https://github.com/pig-mesh/pig.git
-# 或解压 PigX 4.1.0 到 ../pig
+# 若尚未克隆，见上文「仓库与版本」
+# 目录结构应为：
+#   workspace/
+#   ├── IDC-Manager/   # 本仓库（tag v1.0.0）
+#   └── pig/           # MaxCarrioler/pig @ idc-v1.0.0
+#
+# 仅跑上游原版（无用户中心 IDC 补丁）可用：
+#   git clone -b 4.1.0 https://github.com/pig-mesh/pig.git
 ```
 
 #### 1. 准备基础设施
@@ -322,7 +354,9 @@ frontend/
     ├── layouts/MainLayout.vue
     ├── views/
     │   ├── Login.vue
-    │   ├── AccessoryCenter.vue   # 配件中心
+    │   ├── Register.vue          # 访客注册（待审批）
+    │   ├── UserCenter.vue        # 用户 / 角色管理（超管）
+    │   ├── AccessoryCenter.vue   # 配件中心（含 Excel 导出）
     │   ├── ServerList.vue
     │   ├── Statistics.vue
     │   ├── MetadataManagement.vue
@@ -346,7 +380,7 @@ frontend/
 | 技术 | 版本 | 说明 |
 |------|------|------|
 | Java | 17 | 编译与运行必须；与 Lombok 不兼容 Java 25 |
-| PigX | 4.1.0 | 开源版微服务底座（网关 / 公共组件等） |
+| PigX | 4.1.0 | 开源版微服务底座；本仓库配套 [MaxCarrioler/pig@idc-v1.0.0](https://github.com/MaxCarrioler/pig/tree/idc-v1.0.0) |
 | Spring Boot | 4.0.7 | 随 PigX parent |
 | Spring Cloud | 2025.1.2 | 随 PigX parent |
 | Spring Cloud Alibaba | 2025.1.0.0 | Nacos 服务发现 |
