@@ -1,0 +1,60 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: dc-gateway
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+      routes:
+        - id: server-service
+          uri: lb://dc-server-service
+          predicates:
+            - Path=/api/servers/**
+        - id: server-type-service
+          uri: lb://dc-server-service
+          predicates:
+            - Path=/api/server-types/**
+        - id: cpu-architecture-service
+          uri: lb://dc-server-service
+          predicates:
+            - Path=/api/cpu-architectures/**
+        - id: accessory-service
+          uri: lb://dc-accessory-service
+          predicates:
+            - Path=/api/accessories/**
+        - id: accessory-summary
+          uri: lb://dc-accessory-service
+          predicates:
+            - Path=/api/server-accessories/**
+        - id: statistics
+          uri: lb://dc-accessory-service
+          predicates:
+            - Path=/api/statistics/**
+        - id: spare-parts
+          uri: lb://dc-accessory-service
+          predicates:
+            - Path=/api/spare-parts/**
+        - id: spare-part-categories
+          uri: lb://dc-accessory-service
+          predicates:
+            - Path=/api/spare-part-categories/**
+        - id: server-swagger
+          uri: lb://dc-server-service
+          predicates:
+            - Path=/doc/server/**
+          filters:
+            - RewritePath=/doc/server/(?<segment>.*), /${segment}
+        - id: accessory-swagger
+          uri: lb://dc-accessory-service
+          predicates:
+            - Path=/doc/accessory/**
+          filters:
+            - RewritePath=/doc/accessory/(?<segment>.*), /${segment}

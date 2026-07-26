@@ -1,0 +1,86 @@
+# 本地开发：pig-upms-biz 不依赖 Nacos 配置中心，MySQL 存 RBAC
+server:
+  port: 4000
+
+spring:
+  main:
+    allow-circular-references: true
+  cloud:
+    nacos:
+      config:
+        enabled: false
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+    gateway:
+      server:
+        webflux:
+          redis:
+            enabled: false
+          enabled: false
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    druid:
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      username: ${MYSQL_USER:root}
+      password: ${MYSQL_PWD:root}
+      url: jdbc:mysql://${MYSQL_HOST:127.0.0.1}:${MYSQL_PORT:3306}/${MYSQL_DB:pig}?characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=GMT%2B8&allowMultiQueries=true
+      stat-view-servlet:
+        enabled: false
+      filter:
+        wall:
+          config:
+            multi-statement-allow: true
+
+security:
+  oauth2:
+    client:
+      # 本地关闭 Nacos 后，@Inner 扫描在 SecurityFilterChain 之后才完成，需显式放行内部调用
+      ignore-urls:
+        - /actuator/**
+        - /druid/**
+        - /v3/api-docs/**
+        - /client/getClientDetailsById/**
+        - /param/publicValue/**
+        - /param/publicValues
+        - /param/publicValues/**
+        - /user/info/**
+        - /user/lock/**
+        - /log/save
+        - /social/info/**
+        - /sensitive-word/remote/list/**
+        - /sys-file/inner/upload
+        - /sys-file/oss/file
+        - /message/send/smsCode
+        - /api-key/inner/**
+        - /register
+        - /register/**
+        - /system/config
+
+# 原 Nacos application-dev.yml 中的关键 MyBatis 配置（String[] 授权类型等）
+mybatis-plus:
+  mapper-locations: classpath:/mapper/*Mapper.xml
+  global-config:
+    capitalMode: true
+    banner: false
+    db-config:
+      id-type: auto
+      where-strategy: not_empty
+      insert-strategy: not_empty
+      update-strategy: not_null
+  type-handlers-package: com.pig4cloud.pig.common.data.handler
+  configuration:
+    jdbc-type-for-null: 'null'
+    call-setters-on-nulls: true
+    shrink-whitespaces-in-sql: true
+
+mybatis-plus-join:
+  banner: false
+
+file:
+  type: local
+  local:
+    basePath: ${FILE_BASE_PATH:/tmp/pig-files}

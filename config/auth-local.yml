@@ -1,0 +1,40 @@
+# 本地开发：pig-auth 不依赖 Nacos 配置中心
+# 注意：默认端口 3000 与前端冲突，本地改为 3001；经网关 /auth/** 访问
+server:
+  port: 3001
+
+spring:
+  main:
+    allow-circular-references: true
+  cloud:
+    nacos:
+      config:
+        enabled: false
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+  freemarker:
+    allow-request-override: false
+    allow-session-override: false
+    cache: true
+    charset: UTF-8
+    check-template-location: true
+    content-type: text/html
+    enabled: true
+    expose-request-attributes: false
+    expose-session-attributes: false
+    expose-spring-macro-helpers: true
+    prefer-file-system-access: true
+    suffix: .ftl
+    template-loader-path: classpath:/templates/
+
+security:
+  encodeKey: 'thanks,pig4cloud'
+
+aj:
+  captcha:
+    cache-type: redis
+    water-mark: pig4cloud

@@ -1,0 +1,202 @@
+package com.dcasset.server.service;
+
+import com.dcasset.common.dto.ServerDTO;
+import com.dcasset.common.dto.ServerOperationRecordDTO;
+import com.dcasset.common.result.PageResult;
+import com.dcasset.server.entity.ServerEntity;
+import com.dcasset.server.entity.ServerOperationRecordEntity;
+import com.dcasset.server.repository.ServerOperationRecordRepository;
+import com.dcasset.server.repository.ServerRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+public class ServerServiceImpl implements ServerService {
+
+    private static final Map<String, String> FIELD_LABELS = new LinkedHashMap<>();
+
+    static {
+        FIELD_LABELS.put("serverName", "服务器名称");
+        FIELD_LABELS.put("ipAddress", "IP地址");
+        FIELD_LABELS.put("rackLocation", "机架位置");
+        FIELD_LABELS.put("region", "Region名称");
+        FIELD_LABELS.put("serverType", "服务器类型");
+        FIELD_LABELS.put("serverModel", "型号");
+        FIELD_LABELS.put("manufacturer", "厂商");
+        FIELD_LABELS.put("serialNumber", "序列号");
+        FIELD_LABELS.put("status", "状态");
+        FIELD_LABELS.put("osType", "操作系统");
+        FIELD_LABELS.put("cpuArchitecture", "CPU架构");
+        FIELD_LABELS.put("remark", "备注");
+    }
+
+    private final ServerRepository serverRepository;
+    private final ServerOperationRecordRepository operationRecordRepository;
+    private final ServerTypeService serverTypeService;
+    private final CpuArchitectureService cpuArchitectureService;
+
+    @Override
+    public PageResult<ServerDTO> list(String keyword, int page, int size) {
+        Page<ServerEntity> pageData = serverRepository.search(keyword, PageRequest.of(page - 1, size));
+        List<ServerDTO> records = pageData.getContent().stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+        return new PageResult<>(records, pageData.getTotalElements(), page, size, pageData.getTotalPages());
+    }
+
+    @Override
+    public ServerDTO getById(Long id) {
+        return toDto(findEntity(id));
+    }
+
+    @Override
+    @Transactional
+    public ServerDTO create(ServerDTO dto) {
+        validateServerType(dto.getServerType());
+        validateCpuArchitecture(dto.getCpuArchitecture());
+        ServerEntity entity = new ServerEntity();
+        BeanUtils.copyProperties(dto, entity, "id", "updatedAt", "changeReason");
+        entity.setId(null);
+        entity.setServerType(normalizeServerType(dto.getServerType()));
+        ServerEntity saved = serverRepository.save(entity);
+        saveOperationRecord(saved.getId(), "新建服务器：" + saved.getServerName(), "初始录入");
+        return toDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public ServerDTO update(Long id, ServerDTO dto) {
+        validateServerType(dto.getServerType());
+        validateCpuArchitecture(dto.getCpuArchitecture());
+        ServerEntity entity = findEntity(id);
+        ServerDTO oldDto = toDto(entity);
+        BeanUtils.copyProperties(dto, entity, "id", "createdAt", "changeReason");
+        entity.setServerType(normalizeServerType(dto.getServerType()));
+        ServerEntity saved = serverRepository.save(entity);
+
+        String changeContent = buildChangeContent(oldDto, dto);
+        if (!changeContent.isEmpty()) {
+            saveOperationRecord(id, changeContent, dto.getChangeReason());
+        }
+        return toDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public void delete(Long id) {
+        serverRepository.delete(findEntity(id));
+        operationRecordRepository.findByServerIdOrderByModifiedAtDesc(id)
+                .forEach(record -> operationRecordRepository.delete(record));
+    }
+
+    @Override
+    public List<ServerOperationRecordDTO> listOperationRecords(Long serverId) {
+        findEntity(serverId);
+        return operationRecordRepository.findByServerIdOrderByModifiedAtDesc(serverId).stream()
+                .map(this::toRecordDto)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<String> listRegions() {
+        return serverRepository.findDistinctRegions();
+    }
+
+    @Override
+    public List<String> listCpuArchitectures() {
+        return cpuArchitectureService.list().stream()
+                .map(dto -> dto.getCode())
+                .toList();
+    }
+
+    private void validateCpuArchitecture(String cpuArchitecture) {
+        if (cpuArchitecture == null || cpuArchitecture.isBlank()) {
+            return;
+        }
+        cpuArchitectureService.getByCode(cpuArchitecture);
+    }
+
+    private void saveOperationRecord(Long serverId, String changeContent, String changeReason) {
+        ServerOperationRecordEntity record = new ServerOperationRecordEntity();
+        record.setServerId(serverId);
+        record.setChangeContent(changeContent);
+        record.setChangeReason(changeReason != null && !changeReason.isBlank() ? changeReason.trim() : "未填写");
+        operationRecordRepository.save(record);
+    }
+
+    private String buildChangeContent(ServerDTO oldDto, ServerDTO newDto) {
+        StringBuilder sb = new StringBuilder();
+        compareField(sb, "serverName", oldDto.getServerName(), newDto.getServerName());
+        compareField(sb, "ipAddress", oldDto.getIpAddress(), newDto.getIpAddress());
+        compareField(sb, "rackLocation", oldDto.getRackLocation(), newDto.getRackLocation());
+        compareField(sb, "region", oldDto.getRegion(), newDto.getRegion());
+        compareField(sb, "serverType", oldDto.getServerType(), newDto.getServerType());
+        compareField(sb, "serverModel", oldDto.getServerModel(), newDto.getServerModel());
+        compareField(sb, "manufacturer", oldDto.getManufacturer(), newDto.getManufacturer());
+        compareField(sb, "serialNumber", oldDto.getSerialNumber(), newDto.getSerialNumber());
+        compareField(sb, "status", oldDto.getStatus(), newDto.getStatus());
+        compareField(sb, "osType", oldDto.getOsType(), newDto.getOsType());
+        compareField(sb, "cpuArchitecture", oldDto.getCpuArchitecture(), newDto.getCpuArchitecture());
+        compareField(sb, "remark", oldDto.getRemark(), newDto.getRemark());
+        return sb.toString().trim();
+    }
+
+    private void compareField(StringBuilder sb, String field, String oldVal, String newVal) {
+        String oldStr = oldVal == null ? "" : oldVal;
+        String newStr = newVal == null ? "" : newVal;
+        if (Objects.equals(oldStr, newStr)) {
+            return;
+        }
+        if (sb.length() > 0) {
+            sb.append("；");
+        }
+        sb.append(FIELD_LABELS.get(field))
+                .append("：")
+                .append(displayValue(oldStr))
+                .append(" → ")
+                .append(displayValue(newStr));
+    }
+
+    private String displayValue(String value) {
+        return value.isEmpty() ? "空" : value;
+    }
+
+    private void validateServerType(String serverType) {
+        if (serverType == null || serverType.isBlank()) {
+            throw new IllegalArgumentException("服务器类型不能为空");
+        }
+        serverTypeService.getByCode(serverType);
+    }
+
+    private String normalizeServerType(String serverType) {
+        return serverType == null ? null : serverType.trim().toUpperCase();
+    }
+
+    private ServerEntity findEntity(Long id) {
+        return serverRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("服务器不存在: " + id));
+    }
+
+    private ServerDTO toDto(ServerEntity entity) {
+        ServerDTO dto = new ServerDTO();
+        BeanUtils.copyProperties(entity, dto);
+        return dto;
+    }
+
+    private ServerOperationRecordDTO toRecordDto(ServerOperationRecordEntity entity) {
+        ServerOperationRecordDTO dto = new ServerOperationRecordDTO();
+        BeanUtils.copyProperties(entity, dto);
+        return dto;
+    }
+}

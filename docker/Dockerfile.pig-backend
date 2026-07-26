@@ -1,0 +1,33 @@
+# syntax=docker/dockerfile:1
+# 构建 PigX IDC 业务微服务（需与 ../pig 同级目录）
+ARG SERVICE_MODULE=pig-dc/pig-dc-server-biz
+ARG SERVICE_PORT=8081
+
+FROM maven:3.9-eclipse-temurin-17 AS builder
+ARG SERVICE_MODULE
+WORKDIR /build
+
+COPY pig/pom.xml pig/pom.xml
+COPY pig/pig-common pig/pig-common
+COPY pig/pig-upms/pig-upms-api pig/pig-upms/pig-upms-api
+COPY pig/pig-upms/pom.xml pig/pig-upms/pom.xml
+
+COPY IDC-Manager/pom.xml IDC-Manager/pom.xml
+COPY IDC-Manager/pig-dc IDC-Manager/pig-dc
+
+WORKDIR /build/IDC-Manager
+RUN mvn dependency:go-offline -B -pl ${SERVICE_MODULE} -am || true
+RUN mvn clean package -DskipTests -B -pl ${SERVICE_MODULE} -am
+
+FROM eclipse-temurin:17-jre-alpine AS runtime
+ARG SERVICE_MODULE
+ARG SERVICE_PORT
+WORKDIR /app
+
+RUN addgroup -S spring && adduser -S spring -G spring
+USER spring:spring
+
+COPY --from=builder /build/IDC-Manager/${SERVICE_MODULE}/target/*.jar app.jar
+
+EXPOSE ${SERVICE_PORT}
+ENTRYPOINT ["java", "-jar", "app.jar"]
