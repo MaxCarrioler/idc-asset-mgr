@@ -32,10 +32,17 @@
             <el-tag :type="statusTagType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="来源服务器" min-width="140">
+        <el-table-column label="来源服务器" min-width="160">
           <template #default="{ row }">
-            <template v-if="row.sourceServerSerial">
+            <template v-if="row.sourceServerSerial === '无' || row.sourceServerSerial === '采购'">
               {{ row.sourceServerSerial }}
+            </template>
+            <template v-else-if="row.sourceServerName || row.sourceServerSerial">
+              <div>{{ row.sourceServerName || row.sourceServerSerial }}</div>
+              <div
+                v-if="row.sourceServerName && row.sourceServerSerial"
+                class="sub-text"
+              >{{ row.sourceServerSerial }}</div>
             </template>
             <template v-else>-</template>
           </template>

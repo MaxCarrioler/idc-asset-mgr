@@ -233,12 +233,11 @@ public class AccessoryTransferServiceImpl implements AccessoryTransferService {
                         "出库必须选择来源服务器（真实序列号或「无」），备件: " + part.getSerialNumber());
             }
 
-            // 「无」表示无具体来源服务器
-            boolean noSource = "无".equals(sourceServerSerial);
-            if (noSource) {
+            // 「无」「采购」表示无具体物理来源服务器
+            boolean noPhysicalSource = "无".equals(sourceServerSerial) || "采购".equals(sourceServerSerial);
+            if (noPhysicalSource) {
                 sourceServerId = null;
                 sourceServerName = null;
-                sourceServerSerial = "无";
             } else if (sourceServerId != null && sourceServerName == null) {
                 ServerDTO sourceServer = fetchServer(sourceServerId);
                 if (sourceServer != null) {
@@ -460,6 +459,7 @@ public class AccessoryTransferServiceImpl implements AccessoryTransferService {
         dto.setStatus(entity.getStatus());
         dto.setSourceServerId(entity.getSourceServerId());
         dto.setSourceServerSerial(entity.getSourceServerSerial());
+        dto.setSourceServerName(entity.getSourceServerName());
         return dto;
     }
 

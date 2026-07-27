@@ -139,6 +139,20 @@ public class SparePartsServiceImpl implements SparePartsService {
                         throw new IllegalArgumentException("该种类下序列号已存在: " + serialNumber);
                     }
                 });
+
+        if (dto.getSourceServerSerial() == null || dto.getSourceServerSerial().isBlank()) {
+            throw new IllegalArgumentException("来源服务器不能为空（可选：无、采购或真实服务器）");
+        }
+        String sourceSerial = dto.getSourceServerSerial().trim();
+        if ("无".equals(sourceSerial) || "采购".equals(sourceSerial)) {
+            if (dto.getSourceServerId() != null) {
+                throw new IllegalArgumentException("来源为「" + sourceSerial + "」时不能指定服务器 ID");
+            }
+            return;
+        }
+        if (dto.getSourceServerId() == null) {
+            throw new IllegalArgumentException("自定义来源服务器时必须指定服务器");
+        }
     }
 
     private void applyItemFields(SparePartEntity entity, SparePartDTO dto) {
@@ -147,9 +161,23 @@ public class SparePartsServiceImpl implements SparePartsService {
         entity.setSpecSummary(trimToNull(dto.getSpecSummary()));
         entity.setLocation(trimToNull(dto.getLocation()));
         entity.setRemark(trimToNull(dto.getRemark()));
+        applySourceServer(entity, dto);
         if (entity.getStatus() == null || entity.getStatus().isBlank()) {
             entity.setStatus("IN_STOCK");
         }
+    }
+
+    private void applySourceServer(SparePartEntity entity, SparePartDTO dto) {
+        String sourceSerial = dto.getSourceServerSerial().trim();
+        if ("无".equals(sourceSerial) || "采购".equals(sourceSerial)) {
+            entity.setSourceServerId(null);
+            entity.setSourceServerSerial(sourceSerial);
+            entity.setSourceServerName(null);
+            return;
+        }
+        entity.setSourceServerId(dto.getSourceServerId());
+        entity.setSourceServerSerial(sourceSerial);
+        entity.setSourceServerName(trimToNull(dto.getSourceServerName()));
     }
 
     private String trimToNull(String value) {

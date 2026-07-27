@@ -34,12 +34,16 @@ public class SparePartEntity {
     @Column(length = 500)
     private String remark;
 
-    /** 备件来源服务器 ID（可选） */
+    /** 备件来源服务器 ID（「无」「采购」时为空） */
     private Long sourceServerId;
 
-    /** 备件来源服务器序列号（可为「无」） */
+    /** 备件来源服务器序列号（可为「无」「采购」或真实序列号） */
     @Column(length = 100)
     private String sourceServerSerial;
+
+    /** 备件来源服务器名称（真实服务器时写入） */
+    @Column(length = 200)
+    private String sourceServerName;
 
     /** 现役服务器 ID（出库后写入目标服务器） */
     private Long activeServerId;
