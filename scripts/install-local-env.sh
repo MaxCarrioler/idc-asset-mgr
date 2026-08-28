@@ -5,7 +5,6 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOCAL="$HOME/.local/opt"
 BIN="$HOME/.local/bin"
-NACOS_DIR="$ROOT_DIR/.local/nacos"
 PGDATA="$HOME/.local/share/idc-pgdata"
 MAMBA_ROOT="$HOME/micromamba"
 
@@ -15,7 +14,7 @@ export PATH="$BIN:${MAMBA_ROOT}/bin:${PATH}"
 
 install_maven() {
   if [ -x "$LOCAL/maven/bin/mvn" ]; then return 0; fi
-  echo "[1/4] 安装 Maven..."
+  echo "[1/3] 安装 Maven..."
   tmp=$(mktemp -d)
   curl -fL --retry 3 -o "$tmp/maven.tar.gz" \
     "https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz"
@@ -27,7 +26,7 @@ install_maven() {
 
 install_node() {
   if [ -x "$LOCAL/node/bin/node" ]; then return 0; fi
-  echo "[2/4] 安装 Node.js..."
+  echo "[2/3] 安装 Node.js..."
   tmp=$(mktemp -d)
   curl -fL --retry 3 -o "$tmp/node.tar.xz" \
     "https://npmmirror.com/mirrors/node/v20.19.0/node-v20.19.0-linux-x64.tar.xz"
@@ -41,7 +40,7 @@ install_node() {
 
 install_postgresql() {
   if [ -x "$MAMBA_ROOT/bin/postgres" ]; then return 0; fi
-  echo "[3/4] 安装 PostgreSQL（micromamba）..."
+  echo "[3/3] 安装 PostgreSQL（micromamba）..."
   if [ ! -x "$MAMBA_ROOT/bin/micromamba" ]; then
     tmp=$(mktemp -d)
     curl -fL --retry 3 -o "$tmp/micromamba.tar.bz2" \
@@ -50,21 +49,6 @@ install_postgresql() {
     tar -xjf "$tmp/micromamba.tar.bz2" -C "$MAMBA_ROOT/bin" --strip-components=1 bin/micromamba
   fi
   MAMBA_ROOT_PREFIX="$MAMBA_ROOT" "$MAMBA_ROOT/bin/micromamba" install -y -p "$MAMBA_ROOT" postgresql -c conda-forge
-}
-
-install_nacos() {
-  if [ -f "$NACOS_DIR/bin/startup.sh" ]; then return 0; fi
-  echo "[4/4] 安装 Nacos..."
-  tmp=$(mktemp -d)
-  if ! curl -fL --retry 3 -o "$tmp/nacos.tar.gz" \
-    "https://github.com/alibaba/nacos/releases/download/2.4.3/nacos-server-2.4.3.tar.gz"; then
-    curl -fL --retry 3 -o "$tmp/nacos.tar.gz" \
-      "https://mirror.ghproxy.com/https://github.com/alibaba/nacos/releases/download/2.4.3/nacos-server-2.4.3.tar.gz"
-  fi
-  rm -rf "$NACOS_DIR"
-  mkdir -p "$NACOS_DIR"
-  tar -xzf "$tmp/nacos.tar.gz" -C "$NACOS_DIR" --strip-components=1
-  chmod +x "$NACOS_DIR/bin/"*.sh
 }
 
 init_postgresql() {
@@ -86,16 +70,13 @@ EOF
 
   psql -h localhost -p 5432 -d postgres -tc "SELECT 1 FROM pg_roles WHERE rolname='dcasset'" | grep -q 1 || \
     psql -h localhost -p 5432 -d postgres -c "CREATE USER dcasset WITH PASSWORD 'dcasset123' CREATEDB;"
-  psql -h localhost -p 5432 -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='dc_server_db'" | grep -q 1 || \
-    psql -h localhost -p 5432 -d postgres -c "CREATE DATABASE dc_server_db OWNER dcasset;"
-  psql -h localhost -p 5432 -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='dc_accessory_db'" | grep -q 1 || \
-    psql -h localhost -p 5432 -d postgres -c "CREATE DATABASE dc_accessory_db OWNER dcasset;"
+  psql -h localhost -p 5432 -d postgres -tc "SELECT 1 FROM pg_database WHERE datname='idc_manager'" | grep -q 1 || \
+    psql -h localhost -p 5432 -d postgres -c "CREATE DATABASE idc_manager OWNER dcasset;"
 }
 
 install_maven
 install_node
 install_postgresql
-install_nacos
 init_postgresql
 
 echo ""
@@ -104,6 +85,5 @@ echo "  Java:  $(java -version 2>&1 | head -1)"
 echo "  Maven: $(mvn -version 2>&1 | head -1)"
 echo "  Node:  $(node -v)"
 echo "  PG:    $(postgres --version)"
-echo "  Nacos: $NACOS_DIR"
 echo ""
 echo "下一步: scripts/start-local.sh"

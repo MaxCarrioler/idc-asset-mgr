@@ -5,14 +5,13 @@ services:
     environment:
       POSTGRES_USER: dcasset
       POSTGRES_PASSWORD: dcasset123
-      POSTGRES_DB: dc_server_db
+      POSTGRES_DB: idc_manager
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U dcasset -d dc_server_db"]
+      test: ["CMD-SHELL", "pg_isready -U dcasset -d idc_manager"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -20,232 +19,23 @@ services:
     networks:
       - dc-network
 
-  mysql:
-    image: mysql:8.0
-    container_name: dc-mysql
-    environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: pig
-      TZ: Asia/Shanghai
-    ports:
-      - "3306:3306"
-    command:
-      - --character-set-server=utf8mb4
-      - --collation-server=utf8mb4_general_ci
-      - --default-authentication-plugin=mysql_native_password
-      - --lower-case-table-names=1
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./db-pig/pig.sql:/docker-entrypoint-initdb.d/01-pig.sql:ro
-      - ./db-pig/pig_config.sql:/docker-entrypoint-initdb.d/02-pig-config.sql:ro
-      - ./docker/mysql-init/02-gateway-idc-routes.sql:/docker-entrypoint-initdb.d/03-gateway-idc-routes.sql:ro
-      - ./docker/mysql-init/02-accessory-center-rbac.sql:/docker-entrypoint-initdb.d/04-accessory-center-rbac.sql:ro
-      - ./docker/mysql-init/03-user-center-rbac.sql:/docker-entrypoint-initdb.d/05-user-center-rbac.sql:ro
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot", "-proot"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-      start_period: 30s
-    restart: unless-stopped
-    networks:
-      - dc-network
-
-  redis:
-    image: redis:7-alpine
-    container_name: dc-redis
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-    networks:
-      - dc-network
-
-  nacos:
-    image: nacos/nacos-server:v2.4.3
-    container_name: dc-nacos
-    environment:
-      MODE: standalone
-      NACOS_AUTH_ENABLE: "false"
-      SPRING_DATASOURCE_PLATFORM: mysql
-      MYSQL_SERVICE_HOST: mysql
-      MYSQL_SERVICE_PORT: 3306
-      MYSQL_SERVICE_DB_NAME: pig_config
-      MYSQL_SERVICE_USER: root
-      MYSQL_SERVICE_PASSWORD: root
-      MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true
-      JVM_XMS: 256m
-      JVM_XMX: 256m
-    ports:
-      - "8848:8848"
-      - "9848:9848"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8848/nacos/ || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
-    depends_on:
-      mysql:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - dc-network
-
-  pig-upms-biz:
+  backend:
     build:
       context: ..
-      dockerfile: IDC-Manager/docker/Dockerfile.pig-platform
-      args:
-        SERVICE_MODULE: pig-upms/pig-upms-biz
-        SERVICE_PORT: 4000
-        JAR_NAME: pig-upms-biz.jar
-    container_name: pig-upms-biz
+      dockerfile: IDC-Manager/docker/Dockerfile.backend
+    container_name: dc-backend
     environment:
-      NACOS_SERVER_ADDR: nacos:8848
-      REDIS_HOST: redis
-      MYSQL_HOST: mysql
-      MYSQL_PORT: 3306
-      MYSQL_USER: root
-      MYSQL_PWD: root
-      MYSQL_DB: pig
-      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/upms-local.yml
-    volumes:
-      - ./config/upms-local.yml:/app/config/upms-local.yml:ro
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: idc_manager
+      DB_USER: dcasset
+      DB_PASSWORD: dcasset123
+      JWT_SECRET: ${JWT_SECRET:-idc-manager-jwt-secret-key-please-change-in-production-env}
     ports:
-      - "4000:4000"
-    depends_on:
-      mysql:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-    restart: unless-stopped
-    networks:
-      - dc-network
-
-  pig-auth:
-    build:
-      context: ..
-      dockerfile: IDC-Manager/docker/Dockerfile.pig-platform
-      args:
-        SERVICE_MODULE: pig-auth
-        SERVICE_PORT: 3001
-        JAR_NAME: pig-auth.jar
-    container_name: pig-auth
-    environment:
-      NACOS_SERVER_ADDR: nacos:8848
-      REDIS_HOST: redis
-      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/auth-local.yml
-    volumes:
-      - ./config/auth-local.yml:/app/config/auth-local.yml:ro
-    ports:
-      - "3001:3001"
-    depends_on:
-      redis:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-      pig-upms-biz:
-        condition: service_started
-    restart: unless-stopped
-    networks:
-      - dc-network
-
-  pig-dc-server-biz:
-    build:
-      context: ..
-      dockerfile: IDC-Manager/docker/Dockerfile.pig-backend
-      args:
-        SERVICE_MODULE: pig-dc/pig-dc-server-biz
-        SERVICE_PORT: 8081
-    container_name: pig-dc-server-biz
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dc_server_db
-      SPRING_DATASOURCE_USERNAME: dcasset
-      SPRING_DATASOURCE_PASSWORD: dcasset123
-      NACOS_SERVER_ADDR: nacos:8848
-      REDIS_HOST: redis
-      SPRING_DATA_REDIS_HOST: redis
-    ports:
-      - "8081:8081"
+      - "8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-      pig-auth:
-        condition: service_started
-    restart: unless-stopped
-    networks:
-      - dc-network
-
-  pig-dc-accessory-biz:
-    build:
-      context: ..
-      dockerfile: IDC-Manager/docker/Dockerfile.pig-backend
-      args:
-        SERVICE_MODULE: pig-dc/pig-dc-accessory-biz
-        SERVICE_PORT: 8082
-    container_name: pig-dc-accessory-biz
-    environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/dc_accessory_db
-      SPRING_DATASOURCE_USERNAME: dcasset
-      SPRING_DATASOURCE_PASSWORD: dcasset123
-      NACOS_SERVER_ADDR: nacos:8848
-      REDIS_HOST: redis
-      SPRING_DATA_REDIS_HOST: redis
-    ports:
-      - "8082:8082"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-      pig-dc-server-biz:
-        condition: service_started
-      pig-auth:
-        condition: service_started
-    restart: unless-stopped
-    networks:
-      - dc-network
-
-  pig-gateway:
-    build:
-      context: ..
-      dockerfile: IDC-Manager/docker/Dockerfile.pig-gateway
-    container_name: pig-gateway
-    environment:
-      NACOS_SERVER_ADDR: nacos:8848
-      REDIS_HOST: redis
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_CONFIG_ADDITIONAL_LOCATION: file:/app/config/gateway-local.yml
-    volumes:
-      - ./config/gateway-local.yml:/app/config/gateway-local.yml:ro
-    ports:
-      - "9999:9999"
-    depends_on:
-      redis:
-        condition: service_healthy
-      nacos:
-        condition: service_healthy
-      pig-auth:
-        condition: service_started
-      pig-upms-biz:
-        condition: service_started
-      pig-dc-server-biz:
-        condition: service_started
-      pig-dc-accessory-biz:
-        condition: service_started
     restart: unless-stopped
     networks:
       - dc-network
@@ -258,7 +48,7 @@ services:
     ports:
       - "3000:80"
     depends_on:
-      pig-gateway:
+      backend:
         condition: service_started
     restart: unless-stopped
     networks:
@@ -266,7 +56,6 @@ services:
 
 volumes:
   postgres_data:
-  mysql_data:
 
 networks:
   dc-network:

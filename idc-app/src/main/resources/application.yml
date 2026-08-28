@@ -1,0 +1,38 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: idc-app
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:idc_manager}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: false
+
+# JWT 配置：密钥支持环境变量覆盖
+app:
+  security:
+    jwt:
+      secret: ${JWT_SECRET:idc-manager-jwt-secret-key-please-change-in-production-env}
+      # access token 有效期（秒），默认 2 小时
+      access-token-validity: ${JWT_ACCESS_VALIDITY:7200}
+      # refresh token 有效期（秒），默认 7 天
+      refresh-token-validity: ${JWT_REFRESH_VALIDITY:604800}
+    # 登录密码 AES 解密密钥（与前端 CryptoJS 约定一致）
+    encode-key: thanks,pig4cloud
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  level:
+    com.dcasset: info

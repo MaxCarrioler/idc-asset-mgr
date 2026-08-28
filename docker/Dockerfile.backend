@@ -1,35 +1,23 @@
 # syntax=docker/dockerfile:1
-
-ARG SERVICE_MODULE=dc-server-service
-ARG SERVICE_PORT=8081
+# 构建 IDC 单体后端（构建上下文为仓库父目录，与 ../pig 时代保持一致）
 
 FROM maven:3.9-eclipse-temurin-17 AS builder
-ARG SERVICE_MODULE
 WORKDIR /build
 
-COPY pom.xml .
-COPY dc-common/pom.xml dc-common/
-COPY dc-gateway/pom.xml dc-gateway/
-COPY dc-server-service/pom.xml dc-server-service/
-COPY dc-accessory-service/pom.xml dc-accessory-service/
+COPY IDC-Manager/pom.xml IDC-Manager/pom.xml
+COPY IDC-Manager/idc-app/pom.xml IDC-Manager/idc-app/pom.xml
+RUN mvn -f IDC-Manager/pom.xml dependency:go-offline -B || true
 
-RUN mvn dependency:go-offline -B -pl ${SERVICE_MODULE} -am
-
-COPY dc-common dc-common
-COPY ${SERVICE_MODULE} ${SERVICE_MODULE}
-
-RUN mvn clean package -DskipTests -B -pl ${SERVICE_MODULE} -am
+COPY IDC-Manager/idc-app/src IDC-Manager/idc-app/src
+RUN mvn -f IDC-Manager/pom.xml clean package -DskipTests -B
 
 FROM eclipse-temurin:17-jre-alpine AS runtime
-ARG SERVICE_MODULE
-ARG SERVICE_PORT
 WORKDIR /app
 
 RUN addgroup -S spring && adduser -S spring -G spring
 USER spring:spring
 
-COPY --from=builder /build/${SERVICE_MODULE}/target/*.jar app.jar
+COPY --from=builder /build/IDC-Manager/idc-app/target/idc-app.jar app.jar
 
-EXPOSE ${SERVICE_PORT}
-
+EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]

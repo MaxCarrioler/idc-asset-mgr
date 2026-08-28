@@ -23,24 +23,13 @@ stop_pid_file() {
   fi
 }
 
-echo "停止本地 PigX 服务 ..."
+echo "停止本地服务 ..."
 
-for svc in frontend pig-gateway pig-dc-accessory-biz pig-dc-server-biz \
-  pig-auth pig-upms-biz \
-  dc-gateway dc-accessory-service dc-server-service; do
+for svc in frontend backend; do
   stop_pid_file "$svc"
 done
 
-# redis / mysql 由脚本拉起时一并停止（不杀系统服务）
-if [ -f "$RUN_DIR/redis.pid" ]; then
-  stop_pid_file "redis"
-fi
-if [ -f "$RUN_DIR/mysqld.pid" ] || [ -f "$RUN_DIR/mysqld-launcher.pid" ]; then
-  stop_pid_file "mysqld"
-  stop_pid_file "mysqld-launcher"
-fi
-
-for port in 3000 3001 4000 9999 8080 8081 8082; do
+for port in 3000 8080; do
   pids=$(ss -tlnp 2>/dev/null | grep ":${port} " | grep -oP 'pid=\K[0-9]+' || true)
   for pid in $pids; do
     echo "[清理] 端口 :$port PID $pid"

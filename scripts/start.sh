@@ -33,18 +33,14 @@ if ! docker info >/dev/null 2>&1; then
   fi
 fi
 
-echo "构建并启动全部服务（首次约 5~15 分钟）..."
+echo "构建并启动全部服务（首次约 3~8 分钟）..."
 docker compose up -d --build
 
 echo ""
 echo "等待核心服务就绪..."
 for i in $(seq 1 60); do
-  postgres_ok=false
-  nacos_ok=false
-  docker compose ps --format json 2>/dev/null | grep -q '"Service":"postgres"' && \
-    docker compose ps postgres 2>/dev/null | grep -q "(healthy)" && postgres_ok=true
-  docker compose ps nacos 2>/dev/null | grep -q "(healthy)" && nacos_ok=true
-  if $postgres_ok && $nacos_ok; then
+  if docker compose ps --format json 2>/dev/null | grep -q '"Service":"postgres"' && \
+    docker compose ps postgres 2>/dev/null | grep -q "(healthy)"; then
     break
   fi
   sleep 5
@@ -54,9 +50,9 @@ echo ""
 docker compose ps
 echo ""
 echo "访问地址:"
-echo "  前端:  http://localhost:3000"
-echo "  网关:  http://localhost:8080/api/servers"
-echo "  Nacos: http://localhost:8848/nacos"
+echo "  前端:     http://localhost:3000"
+echo "  后端:     http://localhost:8080"
+echo "  API 文档: http://localhost:8080/swagger-ui.html"
 echo ""
 echo "查看日志: docker compose logs -f"
 echo "停止服务: docker compose down"

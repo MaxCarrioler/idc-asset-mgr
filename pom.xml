@@ -5,35 +5,21 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.pig4cloud</groupId>
-        <artifactId>pig</artifactId>
-        <version>4.1.0</version>
-        <relativePath>../pig/pom.xml</relativePath>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.3.5</version>
+        <relativePath/>
     </parent>
 
+    <groupId>com.dcasset</groupId>
     <artifactId>idc-manager</artifactId>
+    <version>1.1.0</version>
     <packaging>pom</packaging>
     <name>IDC 基础设施管理系统</name>
-    <description>基于 PigX 开源版的数据中心资产配件流通系统</description>
+    <description>数据中心资产配件流通系统（轻量单体版）</description>
 
     <modules>
-        <module>pig-common</module>
-        <module>pig-gateway</module>
-        <module>pig-auth</module>
-        <module>pig-upms</module>
-        <module>pig-register</module>
-        <module>pig-visual</module>
-        <module>pig-dc</module>
+        <module>idc-app</module>
     </modules>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>com.pig4cloud</groupId>
-                <artifactId>pig-dc-common</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
 
 </project>

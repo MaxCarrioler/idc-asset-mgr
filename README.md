@@ -1,68 +1,43 @@
-# IDC基础设施管理系统 Demo
+# IDC基础设施管理系统
 
-基于 **PigX 4.1.0 开源版**微服务架构的 IDC 基础设施管理系统，以**服务器**为核心管理单位，支持 7 类配件 CRUD、操作记录追踪、元数据自定义管理、硬件资源汇总统计、独立备件库存，以及**配件中心**调取审批/出库流转。权限采用 PigX 生产级 RBAC（OAuth2 + `sys_role`/`sys_menu`）。
-
-## 仓库与版本
-
-| 仓库 | 地址 | 说明 |
-|------|------|------|
-| IDC-Manager（本仓库） | https://github.com/MaxCarrioler/idc-asset-mgr | 业务代码、前端、Docker；当前发布 **v1.0.0** |
-| PigX 配套 fork | https://github.com/MaxCarrioler/pig | 含用户中心等 IDC 补丁；分支 / tag **`idc-v1.0.0`**（基于 PigX 4.1.0） |
-
-本项目通过符号链接引用同级目录 `../pig` 中的 `pig-gateway` / `pig-auth` / `pig-upms` 等。完整功能（注册审批、角色护栏等）需使用上述 fork，而非上游原版。
-
-```bash
-# 同级目录克隆（推荐）
-cd /path/to/workspace
-git clone -b v1.0.0 https://github.com/MaxCarrioler/idc-asset-mgr.git IDC-Manager
-git clone -b idc-v1.0.0 https://github.com/MaxCarrioler/pig.git
-```
+轻量单体架构的 IDC 基础设施管理系统，以**服务器**为核心管理单位，支持 7 类配件 CRUD、操作记录追踪、元数据自定义管理、硬件资源汇总统计、独立备件库存，以及**配件中心**调取审批/出库流转。权限采用内置 RBAC（JWT + `sys_user`/`sys_role`/`sys_menu`）。
 
 ## 系统架构
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌──────────────────────┐
-│  Vue3 前端   │────▶│ pig-gateway  │────▶│  pig-dc-server-biz   │
-│  :3000      │     │   :9999      │     │       :8081          │
-└─────────────┘     └──────┬───────┘     └──────────┬───────────┘
-                           │                        │
-              ┌────────────┼────────────┐  ┌──────────────────────────┐
-              ▼            ▼            ▼  │  pig-dc-accessory-biz    │
-        ┌──────────┐ ┌──────────┐ ┌──────────┐│        :8082             │
-        │ pig-auth │ │pig-upms  │ │ accessory│└──────────────────────────┘
-        │  :3001   │ │  :4000   │ │  center  │
-        └────┬─────┘ └────┬─────┘ └──────────┘
-             │            │
-             ▼            ▼
-        ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-        │  Redis   │ │  MySQL   │ │PostgreSQL│ │  Nacos   │
-        │  :6379   │ │  :3306   │ │  :5432   │ │  :8848   │
-        └──────────┘ └──────────┘ └──────────┘ └──────────┘
+┌─────────────┐     ┌────────────────────────────┐     ┌──────────────┐
+│  Vue3 前端   │────▶│          idc-app           │────▶│ PostgreSQL   │
+│   :3000     │     │ Spring Boot 单体 :8080      │     │   :5432      │
+└─────────────┘     │ 认证 / 用户中心 / 服务器 /   │     │ idc_manager  │
+                    │ 配件 / 备件 / 配件中心        │     └──────────────┘
+                    └────────────────────────────┘
 ```
 
-> PigX 平台代码位于同级目录 `../pig`（推荐 tag `idc-v1.0.0`），本项目通过符号链接引用 `pig-gateway` 等模块。IDC 业务代码在 `pig-dc/` 下。身份权限在 MySQL（`pig` 库），业务数据在 PostgreSQL。
+单应用 `idc-app`（JDK 17 + Spring Boot 3.3 + Spring Security + JWT + JPA）+ PostgreSQL 单库 + Vue3 前端，共 3 个容器/进程，无任何微服务中间件（无 Nacos / Redis / MySQL / 网关）。
 
 ## 模块说明
 
 | 模块 | 端口 | 说明 |
 |------|------|------|
-| PostgreSQL | 5432 | 业务数据（`dc_server_db` / `dc_accessory_db`） |
-| MySQL | 3306 | PigX RBAC（`sys_user` / `sys_role` / `sys_menu` / OAuth 客户端） |
-| Nacos | 8848 | 服务注册与发现 |
-| Redis | 6379 | OAuth opaque token、网关缓存 |
-| pig-auth | 3001 | OAuth2 授权服务器（经网关 `/auth/**`） |
-| pig-upms-biz | 4000 | 用户权限管理（经网关 `/admin/**`） |
-| pig-gateway | 9999 | PigX API 网关 + IDC 路由转发 |
-| pig-dc-server-biz | 8081 | 服务器管理、操作记录、服务器类型与 CPU 架构元数据 |
-| pig-dc-accessory-biz | 8082 | 配件管理、备件库存、**配件中心流转** |
-| pig-dc-common | - | 公共 DTO / 统一响应封装 |
+| PostgreSQL | 5432 | 单库 `idc_manager`（业务 + RBAC 全部数据，JPA 自动建表） |
+| idc-app（backend） | 8080 | 单体后端：认证（`/auth/**`）、用户中心（`/admin/**`）、业务（`/api/**`） |
 | frontend | 3000 | Vue3 + Element Plus 前端（需登录） |
+
+后端包结构（`com.dcasset`）：
+
+| 包 | 职责 |
+|----|------|
+| `common` | 统一响应 `Result` / `PageResult` / 公共 DTO / 全局异常 |
+| `security` | JWT 签发与校验、Spring Security 配置、密码解码 |
+| `admin` | RBAC 实体/仓库/服务（用户、角色、菜单）+ `/auth`、`/admin/**` 端点 |
+| `server` | 服务器管理、操作记录、服务器类型与 CPU 架构元数据 |
+| `accessory` | 配件管理、备件库存、配件中心流转、硬件/备件统计 |
 
 ## 角色与权限
 
 | 角色码 | 名称 | 演示账号 | 权限概要 |
 |--------|------|----------|----------|
-| `ROLE_ADMIN` | 全局管理员 | `admin` / `123456` | 全部权限；**用户审批 / 注销 / 角色授权** |
+| `ROLE_ADMIN` | 全局管理员 | `admin` / `123456` | 全部权限（`*:*:*`）；**用户审批 / 注销 / 角色授权** |
 | `ROLE_ACCESSORY_ADMIN` | 配件管理员 | `accessory_admin` / `123456` | 配件中心审批、驳回、出库 |
 | `GENERAL_USER` | 普通用户 | `user` / `123456` | 提交调取申请、查看本人申请 |
 
@@ -149,20 +124,16 @@ git clone -b idc-v1.0.0 https://github.com/MaxCarrioler/pig.git
 |------|------|
 | Docker | 24.0+ |
 | Docker Compose | v2.20+ |
-| 可用内存 | 4 GB+（推荐 8 GB） |
+| 可用内存 | 2 GB+ |
 
 ### 本地开发（非容器）
 
 | 组件 | 版本 | 说明 |
 |------|------|------|
 | **JDK** | **17**（必须） | Java 25 与 Lombok 不兼容，编译会失败 |
-| Maven | 3.8+ | 后端编译与 `spring-boot:run` |
+| Maven | 3.8+ | 后端编译与打包 |
 | Node.js | 20+ | 前端 Vite 开发服务器 |
-| PostgreSQL | 18.x | 两个微服务各用独立业务库 |
-| MySQL | 8.0 | PigX 身份权限库 `pig`（用户/角色/菜单/OAuth） |
-| Nacos | 2.4.3 | standalone 模式（服务发现） |
-| Redis | 7.x | OAuth token / 网关；`start-local.sh` 可自动启动用户目录 Redis |
-| PigX 源码 | 4.1.0（`idc-v1.0.0`） | 克隆到 `../pig`，与 IDC-Manager 同级；推荐 [MaxCarrioler/pig](https://github.com/MaxCarrioler/pig) |
+| PostgreSQL | 15+ | 单库 `idc_manager`，表结构与种子数据由应用自动初始化 |
 
 ---
 
@@ -171,17 +142,11 @@ git clone -b idc-v1.0.0 https://github.com/MaxCarrioler/pig.git
 ### 方式 A：Docker 一键部署（推荐用于演示/部署）
 
 ```bash
-# 确保同级已有 ../pig（见上文「仓库与版本」）
 cd IDC-Manager
-
-# 首次：安装 Docker 并加入 docker 组
-sudo scripts/install-docker.sh
-# 重新登录后执行
-
 docker compose up -d --build
 ```
 
-首次构建约 5~15 分钟。启动完成后访问 **http://localhost:3000**。
+首次构建约 3~8 分钟（下载 Maven / Node 依赖并编译）。启动完成后访问 **http://localhost:3000**。
 
 ```bash
 docker compose ps          # 查看状态
@@ -190,140 +155,73 @@ docker compose down        # 停止
 docker compose down -v     # 停止并清空数据库
 ```
 
-详细说明见 [DEPLOYMENT.md](DEPLOYMENT.md)。
+仅 3 个容器：`dc-postgres`（:5432）、`dc-backend`（:8080）、`dc-frontend`（:3000）。详细说明见 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
 ### 方式 B：本地单机启动（推荐用于开发调试）
 
-#### 0. 准备源码布局
+#### 1. 准备 PostgreSQL
+
+默认连接 `192.168.59.101:5432`，凭据 `dcasset` / `dcasset123`（可用环境变量 `DB_HOST` / `DB_PORT` / `DB_USER` / `DB_PASSWORD` 覆盖）。启动脚本会自动创建 `idc_manager` 库（需 `psql` 可用）：
 
 ```bash
-# 若尚未克隆，见上文「仓库与版本」
-# 目录结构应为：
-#   workspace/
-#   ├── IDC-Manager/   # 本仓库（tag v1.0.0）
-#   └── pig/           # MaxCarrioler/pig @ idc-v1.0.0
-#
-# 仅跑上游原版（无用户中心 IDC 补丁）可用：
-#   git clone -b 4.1.0 https://github.com/pig-mesh/pig.git
-```
-
-#### 1. 准备基础设施
-
-**PostgreSQL** — 创建用户与数据库：
-
-```bash
-# 示例（按实际安装方式调整）
+# 手动建库示例
 sudo -u postgres psql <<'EOF'
 CREATE USER dcasset WITH PASSWORD 'dcasset123' CREATEDB;
-CREATE DATABASE dc_server_db OWNER dcasset;
-CREATE DATABASE dc_accessory_db OWNER dcasset;
+CREATE DATABASE idc_manager OWNER dcasset;
 EOF
 ```
 
-默认连接配置（可通过环境变量 `SPRING_DATASOURCE_URL` 覆盖）：
-
-| 微服务 | 数据库 | 默认地址 |
-|--------|--------|----------|
-| pig-dc-server-biz | `dc_server_db` | `jdbc:postgresql://192.168.59.101:5432/dc_server_db` |
-| pig-dc-accessory-biz | `dc_accessory_db` | `jdbc:postgresql://192.168.59.101:5432/dc_accessory_db` |
-
-凭据：用户名 `dcasset`，密码 `dcasset123`。
-
-**MySQL 8** — PigX RBAC（本地推荐，可不依赖 Docker）：
-
-```bash
-# 若尚未有 MySQL，可用 micromamba 安装到项目目录（已验证可用）
-# micromamba create -y -p .local/mysql-env -c conda-forge mysql-server=8.4.2 mysql-client=8.4.2
-# 首次导入：
-#   .local/mysql-env/bin/mysql -h127.0.0.1 -uroot -proot < db-pig/pig.sql
-#   .local/mysql-env/bin/mysql -h127.0.0.1 -uroot -proot < db-pig/pig_config.sql
-#   .local/mysql-env/bin/mysql -h127.0.0.1 -uroot -proot < docker/mysql-init/02-gateway-idc-routes.sql
-#   .local/mysql-env/bin/mysql -h127.0.0.1 -uroot -proot < docker/mysql-init/02-accessory-center-rbac.sql
-#   .local/mysql-env/bin/mysql -h127.0.0.1 -uroot -proot < docker/mysql-init/03-user-center-rbac.sql
-# 之后 start-local.sh 会自动检测/拉起 .local/mysql-env
-```
-
-默认：`root`/`root`，库名 `pig`（RBAC）和 `pig_config`（Nacos），端口 `3306`。演示账号见上文「角色与权限」。
-
-**Nacos 2.4.3** — standalone 模式启动：
-
-```bash
-# 下载解压 nacos-server-2.4.3.tar.gz 后
-bin/startup.sh -m standalone
-```
-
-验证：http://localhost:8848/nacos
-
-#### 2. 编译项目
+#### 2. 编译与启动
 
 ```bash
 # 必须使用 JDK 17
 export JAVA_HOME=/path/to/jdk-17   # 例如 ~/.local/opt/jdk-17
 export PATH="$JAVA_HOME/bin:$PATH"
 
-mvn clean install -DskipTests \
-  -pl pig-auth,pig-upms/pig-upms-biz,pig-dc/pig-dc-server-biz,pig-dc/pig-dc-accessory-biz,pig-gateway -am
-cd frontend && npm install
-```
+mvn clean package -DskipTests
+cd frontend && npm install && cd ..
 
-#### 3. 一键启动（推荐）
-
-```bash
 scripts/start-local.sh
 ```
 
-脚本会检查 PostgreSQL / MySQL / Nacos / Redis，并依次启动 `pig-auth`（:3001）、`pig-upms-biz`（:4000）、`pig-dc-server-biz`、`pig-dc-accessory-biz`、`pig-gateway`（:9999）与前端。
+脚本会检查 PostgreSQL、自动建库、启动单体后端（:8080）与前端（:3000）。
 
 停止服务：`scripts/stop-local.sh`
 
 浏览器访问：**http://localhost:3000**，使用演示账号登录；也可从登录页进入 **去注册**，由 `admin` 在用户中心审批。
 
-> 业务库首次由 Hibernate `ddl-auto: update` 建表，`DataInitializer` 写入示例数据并回填备件 `status`/来源字段。
-
-### 混合模式（开发推荐）
-
-仅用 Docker 跑基础设施，微服务和前端在本机运行：
-
-```bash
-docker compose up -d postgres mysql redis nacos
-scripts/start-local.sh
-```
----
+> 首次启动由 Hibernate `ddl-auto: update` 建表，`DataInitializer` 写入示例业务数据；`RbacDataInitializer` 幂等写入三个演示账号、三个角色与全部权限点菜单。
 
 ## 常见问题
 
 | 现象 | 处理方式 |
 |------|----------|
 | `mvn` 编译报 Lombok 相关错误 | 确认使用 **JDK 17**，不要用 Java 25 |
-| 数据库连接失败 | 检查 PostgreSQL / MySQL 是否运行、地址/用户/库是否正确 |
-| 登录失败 / 401 | 确认 `pig-auth`、MySQL、Redis 已启动；密码经 AES 加密后提交（前端已处理） |
+| 数据库连接失败 | 检查 PostgreSQL 是否运行、`DB_HOST`/`DB_USER`/`DB_NAME` 是否正确 |
+| 登录失败 / 401 | 确认后端与 PostgreSQL 已启动；密码经 AES 加密后提交（前端已处理）；账号处于待审批（`lock_flag=9`）状态时不可登录 |
 | 接口 403 | 当前角色无对应权限点（如普通用户不可审批出库） |
-| 网关返回 503 | Nacos 未启动或微服务尚未注册，等待 15~30 秒后重试 |
-| 网关启动失败 | 确认 Redis 已运行（`start-local.sh` 会尝试自动启动本地 Redis） |
-| 未安装 Docker | 运行 `sudo scripts/install-docker.sh` 后重新登录 |
+| 令牌过期 | 前端自动用 refresh_token 刷新；刷新也过期则重新登录 |
+| 端口冲突 | Docker：修改 `docker-compose.yml` 端口映射；本地：检查 8080 / 3000 占用进程 |
 | 前端无法访问 | Docker 方式：确认 `dc-frontend` 为 running；本地方式：确认 `npm run dev` 已启动 |
-| 端口冲突 | Docker：修改 `docker-compose.yml` 端口映射；本地：检查占用进程 |
 
 ## 访问地址
 
 | 地址 | 说明 |
 |------|------|
 | http://localhost:3000 | 前端（需登录） |
-| http://localhost:9999/auth/oauth2/token | OAuth2 令牌（经网关） |
-| http://localhost:9999/api/accessory-center/requests | 配件中心申请列表 |
-| http://localhost:9999/api/servers | 服务器 API（经 PigX 网关） |
-| http://localhost:9999/api/server-types | 服务器类型 API |
-| http://localhost:9999/api/cpu-architectures | CPU 架构元数据 API |
-| http://localhost:9999/api/statistics/hardware | 硬件资源统计（全量） |
-| http://localhost:9999/api/statistics/hardware?regions=华北-北京&serverTypeIds=1,2&cpuArchitectures=X86_64 | 多维度筛选统计 |
-| http://localhost:9999/api/spare-part-categories | 备件种类 CRUD |
-| http://localhost:9999/api/spare-parts/summary | 备件库存汇总 |
-| http://localhost:9999/api/spare-parts/items?categoryId=1 | 按种类查询备件明细 |
-| http://localhost:9999/api/servers/regions | 全量 Region 列表 |
-| http://localhost:9999/api/accessories/cpus?serverId=1 | CPU 配件 API |
-| http://localhost:8081/swagger-ui.html | 服务器服务 Swagger |
-| http://localhost:8082/swagger-ui.html | 配件服务 Swagger |
-| http://localhost:8848/nacos | Nacos 控制台（默认无鉴权） |
+| http://localhost:8080/auth/oauth2/token | OAuth2 形态令牌端点（form 表单） |
+| http://localhost:8080/api/servers | 服务器 API |
+| http://localhost:8080/api/server-types | 服务器类型 API |
+| http://localhost:8080/api/cpu-architectures | CPU 架构元数据 API |
+| http://localhost:8080/api/statistics/hardware | 硬件资源统计（全量） |
+| http://localhost:8080/api/statistics/hardware?regions=华北-北京&serverTypeIds=1,2&cpuArchitectures=X86_64 | 多维度筛选统计 |
+| http://localhost:8080/api/spare-part-categories | 备件种类 CRUD |
+| http://localhost:8080/api/spare-parts/summary | 备件库存汇总 |
+| http://localhost:8080/api/spare-parts/items?categoryId=1 | 按种类查询备件明细 |
+| http://localhost:8080/api/servers/regions | 全量 Region 列表 |
+| http://localhost:8080/api/accessories/cpus?serverId=1 | CPU 配件 API |
+| http://localhost:8080/api/accessory-center/requests | 配件中心申请列表 |
+| http://localhost:8080/swagger-ui.html | API 文档（Swagger） |
 
 ## 启动脚本说明
 
@@ -331,10 +229,9 @@ scripts/start-local.sh
 |------|------|
 | `scripts/install-docker.sh` | 安装 Docker 与 Compose（需 sudo） |
 | `scripts/start.sh` | Docker 方式：构建并启动全部容器 |
-| `scripts/start-local.sh` | 本地方式：JDK 17 一键启动全部服务 |
+| `scripts/start-local.sh` | 本地方式：JDK 17 一键启动后端 + 前端 |
 | `scripts/stop-local.sh` | 本地方式：停止全部服务 |
-| `scripts/install-local-env.sh` | 本地方式：用户目录安装 Maven / Node / PostgreSQL / Nacos |
-| `scripts/dev-env.sh` | Dev Container 内加载开发环境变量 |
+| `scripts/install-local-env.sh` | 本地方式：用户目录安装 Maven / Node / PostgreSQL |
 
 ## 前端文件结构
 
@@ -346,7 +243,7 @@ frontend/
 └── src/
     ├── main.js
     ├── App.vue
-    ├── api/index.js              # Axios + Bearer 令牌
+    ├── api/index.js              # Axios + Bearer 令牌 + 401 自动刷新
     ├── config/accessory.js
     ├── directives/permission.js  # v-permission
     ├── stores/auth.js            # 登录态
@@ -379,16 +276,13 @@ frontend/
 
 | 技术 | 版本 | 说明 |
 |------|------|------|
-| Java | 17 | 编译与运行必须；与 Lombok 不兼容 Java 25 |
-| PigX | 4.1.0 | 开源版微服务底座；本仓库配套 [MaxCarrioler/pig@idc-v1.0.0](https://github.com/MaxCarrioler/pig/tree/idc-v1.0.0) |
-| Spring Boot | 4.0.7 | 随 PigX parent |
-| Spring Cloud | 2025.1.2 | 随 PigX parent |
-| Spring Cloud Alibaba | 2025.1.0.0 | Nacos 服务发现 |
-| Spring Cloud Gateway | — | PigX `pig-gateway`（端口 9999） |
-| Spring Data JPA / Hibernate | — | ORM，`ddl-auto: update` 自动建表 |
-| SpringDoc OpenAPI | 3.0.3 | Swagger UI（经 `pig-common-swagger`） |
-| Lombok | 1.18.46 | 随 PigX |
-| PostgreSQL JDBC | — | 业务库驱动 |
+| Java | 17 | 编译与运行必须；与 Lombok 不兼容的高版本不可用 |
+| Spring Boot | 3.3.5 | 单体应用 |
+| Spring Security | 6.x | JWT（HMAC-SHA256）资源保护 + `@PreAuthorize` 方法级权限 |
+| Spring Data JPA / Hibernate | 6.x | ORM，`ddl-auto: update` 自动建表 |
+| SpringDoc OpenAPI | 2.x | Swagger UI |
+| Lombok | 1.18.x | 代码简化 |
+| PostgreSQL JDBC | — | 唯一数据源驱动 |
 | Maven | 3.9+ | 构建；Docker 镜像 `maven:3.9-eclipse-temurin-17` |
 
 ### 前端
@@ -396,7 +290,7 @@ frontend/
 | 技术 | 版本 | 说明 |
 |------|------|------|
 | Vue | 3.5.x | `^3.5.13` |
-| Element Plus | 2.x | `^2.9.1`（当前安装约 2.14） |
+| Element Plus | 2.x | `^2.9.1` |
 | Vite | 6.x | `^6.0.5` |
 | Vue Router | 4.x | `^4.5.0` |
 | Axios | 1.x | `^1.7.9` |
@@ -407,7 +301,5 @@ frontend/
 | 组件 | 版本 | Docker 镜像 / 运行时 |
 |------|------|----------------------|
 | PostgreSQL | 18.x | `postgres:18-alpine` |
-| Redis | 7.x | `redis:7-alpine`（本地约 7.2） |
-| Nacos | 2.4.3 | `nacos/nacos-server:v2.4.3`（standalone） |
 | 后端运行时 | JRE 17 | `eclipse-temurin:17-jre-alpine` |
 | 前端生产托管 | Nginx 1.27 | `nginx:1.27-alpine`（多阶段构建） |
