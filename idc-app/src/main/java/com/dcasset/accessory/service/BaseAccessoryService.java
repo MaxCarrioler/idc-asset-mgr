@@ -1,6 +1,7 @@
 package com.dcasset.accessory.service;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -27,6 +28,7 @@ public abstract class BaseAccessoryService<E, D> {
         return toDto(findEntity(id));
     }
 
+    @Transactional
     public D create(D dto) {
         E entity = entitySupplier().get();
         copyDtoToEntity(dto, entity);
@@ -34,12 +36,14 @@ public abstract class BaseAccessoryService<E, D> {
         return toDto(getRepository().save(entity));
     }
 
+    @Transactional
     public D update(Long id, D dto) {
         E entity = findEntity(id);
         copyDtoToEntity(dto, entity);
         return toDto(getRepository().save(entity));
     }
 
+    @Transactional
     public void delete(Long id) {
         getRepository().delete(findEntity(id));
     }

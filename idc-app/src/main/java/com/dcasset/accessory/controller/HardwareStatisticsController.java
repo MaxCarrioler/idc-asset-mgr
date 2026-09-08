@@ -21,13 +21,14 @@ public class HardwareStatisticsController {
 
     private final HardwareStatisticsService hardwareStatisticsService;
 
-    @Operation(summary = "硬件资源汇总统计（支持 Region / 服务器类型 / CPU 架构多维度筛选）")
+    @Operation(summary = "硬件资源汇总统计（支持 Region / 服务器类型 / CPU 架构 / 硬盘类型多维度筛选）")
     @GetMapping("/hardware")
     public Result<HardwareStatisticsDTO> getHardwareStatistics(
             @RequestParam(value = "regions", required = false) List<String> regions,
             @RequestParam(value = "serverTypeIds", required = false) List<Long> serverTypeIds,
-            @RequestParam(value = "cpuArchitectures", required = false) List<String> cpuArchitectures) {
+            @RequestParam(value = "cpuArchitectures", required = false) List<String> cpuArchitectures,
+            @RequestParam(value = "hardDiskTypes", required = false) List<String> hardDiskTypes) {
         return Result.success(hardwareStatisticsService.getHardwareStatistics(
-                regions, serverTypeIds, cpuArchitectures));
+                regions, serverTypeIds, cpuArchitectures, hardDiskTypes));
     }
 }

@@ -4,10 +4,12 @@ import com.dcasset.server.entity.ServerEntity;
 import com.dcasset.server.entity.ServerOperationRecordEntity;
 import com.dcasset.server.entity.ServerTypeEntity;
 import com.dcasset.server.entity.CpuArchitectureEntity;
+import com.dcasset.server.entity.HardDiskTypeEntity;
 import com.dcasset.server.repository.ServerOperationRecordRepository;
 import com.dcasset.server.repository.ServerRepository;
 import com.dcasset.server.repository.ServerTypeRepository;
 import com.dcasset.server.repository.CpuArchitectureRepository;
+import com.dcasset.server.repository.HardDiskTypeRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
@@ -23,12 +25,14 @@ public class DataInitializer {
     private final ServerOperationRecordRepository operationRecordRepository;
     private final ServerTypeRepository serverTypeRepository;
     private final CpuArchitectureRepository cpuArchitectureRepository;
+    private final HardDiskTypeRepository hardDiskTypeRepository;
 
     @Bean
     CommandLineRunner initData() {
         return args -> {
             initServerTypes();
             initCpuArchitectures();
+            initHardDiskTypes();
             if (serverRepository.count() > 0) {
                 return;
             }
@@ -93,6 +97,24 @@ public class DataInitializer {
         entity.setDescription(description);
         entity.setBuiltIn(true);
         cpuArchitectureRepository.save(entity);
+    }
+
+    private void initHardDiskTypes() {
+        if (hardDiskTypeRepository.count() > 0) {
+            return;
+        }
+        createBuiltInDiskType("SAS", "SAS", "串行 SCSI 接口硬盘，高可靠、高转速，多用于企业级存储");
+        createBuiltInDiskType("SATA", "SATA", "串行 ATA 接口硬盘，容量大、成本低，多用于冷数据与备份");
+        createBuiltInDiskType("SSD", "SSD", "固态硬盘，无机械部件，低延迟高 IOPS");
+    }
+
+    private void createBuiltInDiskType(String code, String name, String description) {
+        HardDiskTypeEntity entity = new HardDiskTypeEntity();
+        entity.setCode(code);
+        entity.setName(name);
+        entity.setDescription(description);
+        entity.setBuiltIn(true);
+        hardDiskTypeRepository.save(entity);
     }
 
     private ServerEntity createServer(String name, String serverType, String ip, String rack, String region,

@@ -47,6 +47,10 @@ public class AccessoryTransferRequestEntity {
     @Column(length = 500)
     private String rejectReason;
 
+    /** 审批通过备注 */
+    @Column(length = 500)
+    private String approveRemark;
+
     private Long approverId;
 
     @Column(length = 64)

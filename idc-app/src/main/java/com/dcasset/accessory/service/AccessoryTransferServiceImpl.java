@@ -159,6 +159,7 @@ public class AccessoryTransferServiceImpl implements AccessoryTransferService {
         entity.setApproverName(displayName(user));
         entity.setApprovedAt(LocalDateTime.now());
         entity.setRejectReason(null);
+        entity.setApproveRemark(request == null ? null : trimToNull(request.getRemark()));
         return toRequestDto(requestRepository.save(entity), itemRepository.findByRequestId(id));
     }
 
@@ -175,6 +176,33 @@ public class AccessoryTransferServiceImpl implements AccessoryTransferService {
         entity.setApproverId(user.getId());
         entity.setApproverName(displayName(user));
         entity.setApprovedAt(LocalDateTime.now());
+        return toRequestDto(requestRepository.save(entity), List.of());
+    }
+
+    @Override
+    @Transactional
+    public AccessoryTransferRequestDTO revoke(Long id) {
+        AccessoryTransferRequestEntity entity = findRequestForUpdate(id);
+        if (!STATUS_APPROVED.equals(entity.getStatus())) {
+            throw new IllegalArgumentException("仅审批通过且未出库的申请可撤销");
+        }
+        // 释放该申请预留的备件，恢复在库，避免审批后未出库导致库存被长期锁死
+        for (AccessoryTransferItemEntity item : itemRepository.findByRequestId(id)) {
+            sparePartRepository.findByIdForUpdate(item.getSparePartId()).ifPresent(part -> {
+                if (SPARE_RESERVED.equals(part.getStatus())) {
+                    part.setStatus(SPARE_IN_STOCK);
+                    sparePartRepository.save(part);
+                }
+            });
+        }
+        itemRepository.deleteByRequestId(id);
+        // 回退为待审批并清空审批痕迹，可重新审批或驳回
+        entity.setStatus(STATUS_PENDING);
+        entity.setApproverId(null);
+        entity.setApproverName(null);
+        entity.setApprovedAt(null);
+        entity.setApproveRemark(null);
+        entity.setRejectReason(null);
         return toRequestDto(requestRepository.save(entity), List.of());
     }
 
@@ -380,6 +408,7 @@ public class AccessoryTransferServiceImpl implements AccessoryTransferService {
         dto.setApplicantName(entity.getApplicantName());
         dto.setStatus(entity.getStatus());
         dto.setRejectReason(entity.getRejectReason());
+        dto.setApproveRemark(entity.getApproveRemark());
         dto.setApproverId(entity.getApproverId());
         dto.setApproverName(entity.getApproverName());
         dto.setCreatedAt(entity.getCreatedAt());

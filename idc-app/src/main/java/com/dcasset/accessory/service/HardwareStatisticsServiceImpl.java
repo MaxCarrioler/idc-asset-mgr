@@ -9,7 +9,6 @@ import com.dcasset.accessory.repository.MemoryRepository;
 import com.dcasset.common.dto.HardwareStatisticsDTO;
 import com.dcasset.common.dto.ServerDTO;
 import com.dcasset.common.dto.ServerTypeDTO;
-import com.dcasset.common.result.PageResult;
 import com.dcasset.server.service.ServerService;
 import com.dcasset.server.service.ServerTypeService;
 import org.springframework.stereotype.Service;
@@ -56,7 +55,8 @@ public class HardwareStatisticsServiceImpl implements HardwareStatisticsService 
     public HardwareStatisticsDTO getHardwareStatistics(
             List<String> regions,
             List<Long> serverTypeIds,
-            List<String> cpuArchitectures) {
+            List<String> cpuArchitectures,
+            List<String> hardDiskTypes) {
         Map<Long, ServerDTO> serverMap = fetchAllServers();
         Map<Long, String> typeIdToCode = fetchServerTypes().stream()
                 .collect(Collectors.toMap(ServerTypeDTO::getId, ServerTypeDTO::getCode, (a, b) -> a));
@@ -70,12 +70,23 @@ public class HardwareStatisticsServiceImpl implements HardwareStatisticsService 
                 .filter(code -> code != null && !code.isBlank())
                 .map(this::normalizeCode)
                 .collect(Collectors.toSet());
-        Set<String> cpuArchFilter = normalizeCpuArchitectures(cpuArchitectures);
+        Set<String> cpuArchFilter = normalizeCodeSet(cpuArchitectures);
+
+        // 硬盘表仅查一次：既用于硬盘类型筛选，也用于后续容量聚合
+        List<HardDiskEntity> allDisks = hardDiskRepository.findAll();
+        Set<String> diskTypeFilter = normalizeCodeSet(hardDiskTypes);
+        Set<Long> serverIdsWithDiskType = diskTypeFilter.isEmpty()
+                ? Set.of()
+                : allDisks.stream()
+                .filter(disk -> matchesDiskTypeCodes(disk, diskTypeFilter))
+                .map(HardDiskEntity::getServerId)
+                .collect(Collectors.toSet());
 
         Set<Long> matchedServerIds = serverMap.values().stream()
                 .filter(server -> matchesRegion(server, regionFilter))
                 .filter(server -> matchesServerType(server, typeCodeFilter))
                 .filter(server -> matchesCpuArchitecture(server, cpuArchFilter))
+                .filter(server -> matchesHardDiskType(server, diskTypeFilter, serverIdsWithDiskType))
                 .map(ServerDTO::getId)
                 .collect(Collectors.toSet());
 
@@ -85,7 +96,7 @@ public class HardwareStatisticsServiceImpl implements HardwareStatisticsService 
         Map<String, DiskSpecAccumulator> specMap = initSpecMap();
         aggregateCpuForServers(cpuRepository.findAll(), matchedServerIds, statistics);
         aggregateMemoryForServers(memoryRepository.findAll(), matchedServerIds, statistics);
-        long totalDiskGb = aggregateDisksForServers(hardDiskRepository.findAll(), matchedServerIds, specMap);
+        long totalDiskGb = aggregateDisksForServers(allDisks, matchedServerIds, specMap);
         statistics.setTotalDiskCapacityTb(gbToTb(totalDiskGb));
 
         List<HardwareStatisticsDTO.DiskSpecSummary> diskSpecSummaries = DISK_SPECS.stream()
@@ -102,12 +113,12 @@ public class HardwareStatisticsServiceImpl implements HardwareStatisticsService 
 
     @Override
     public Map<Long, ServerDTO> fetchAllServers() {
-        // 同进程直调，替代原跨服务 RestTemplate 调用
-        PageResult<ServerDTO> page = serverService.list(null, 1, 1000);
-        if (page == null || page.getRecords() == null) {
+        // 同进程直调，取全量服务器（不再受分页上限影响，避免统计漏算）
+        List<ServerDTO> servers = serverService.listAll();
+        if (servers == null || servers.isEmpty()) {
             return Map.of();
         }
-        return page.getRecords().stream()
+        return servers.stream()
                 .collect(Collectors.toMap(ServerDTO::getId, s -> s, (a, b) -> a));
     }
 
@@ -139,6 +150,30 @@ public class HardwareStatisticsServiceImpl implements HardwareStatisticsService 
         return cpuArchFilter.contains(server.getCpuArchitecture().trim().toUpperCase());
     }
 
+    /**
+     * 硬盘类型属于配件级属性：只要服务器下存在任一块匹配类型的硬盘，该服务器即命中筛选。
+     */
+    private boolean matchesHardDiskType(ServerDTO server, Set<String> diskTypeFilter,
+                                        Set<Long> serverIdsWithDiskType) {
+        if (diskTypeFilter.isEmpty()) {
+            return true;
+        }
+        return serverIdsWithDiskType.contains(server.getId());
+    }
+
+    /**
+     * 硬盘类型编码同时比对介质类型（diskType，如 SSD / HDD）与接口类型（interfaceType，如 SAS / SATA / NVMe），
+     * 任一字段命中即视为匹配，以兼容 SAS / SATA / SSD 这类跨口径的类型定义。
+     */
+    private boolean matchesDiskTypeCodes(HardDiskEntity disk, Set<String> diskTypeFilter) {
+        return containsCode(diskTypeFilter, disk.getDiskType())
+                || containsCode(diskTypeFilter, disk.getInterfaceType());
+    }
+
+    private boolean containsCode(Set<String> codes, String value) {
+        return value != null && !value.isBlank() && codes.contains(value.trim().toUpperCase());
+    }
+
     private Set<String> normalizeStringSet(List<String> values) {
         if (values == null || values.isEmpty()) {
             return Set.of();
@@ -161,7 +196,7 @@ public class HardwareStatisticsServiceImpl implements HardwareStatisticsService 
                 .collect(Collectors.toSet());
     }
 
-    private Set<String> normalizeCpuArchitectures(List<String> values) {
+    private Set<String> normalizeCodeSet(List<String> values) {
         Set<String> normalized = new HashSet<>();
         if (values == null) {
             return normalized;

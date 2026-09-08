@@ -57,7 +57,11 @@ public class DataInitializer {
     }
 
     private void initSparePartCategories() {
-        if (sparePartCategoryRepository.findByCode("HARD_DISK").isPresent()) {
+        // 一次性迁移：仅当仍为旧「HARD_DISK」单一种类、且新粒度种类尚未建立时才清空重建；
+        // 迁移完成后即使用户自建同名「HARD_DISK」编码，也不会在重启时误删全部备件数据。
+        boolean legacySchema = sparePartCategoryRepository.findByCode("HARD_DISK").isPresent();
+        boolean alreadyMigrated = sparePartCategoryRepository.findByCode("HDD_1_8T").isPresent();
+        if (legacySchema && !alreadyMigrated) {
             sparePartRepository.deleteAll();
             sparePartCategoryRepository.deleteAll();
         }

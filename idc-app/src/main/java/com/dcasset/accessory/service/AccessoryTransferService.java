@@ -16,6 +16,9 @@ public interface AccessoryTransferService {
 
     AccessoryTransferRequestDTO reject(Long id, String reason);
 
+    /** 撤销审批：释放已预留备件，申请回退为待审批 */
+    AccessoryTransferRequestDTO revoke(Long id);
+
     List<AccessoryOutboundDTO> outbound(Long id, AccessoryOutboundRequest request);
 
     List<AccessoryOutboundDTO> listTransfers();

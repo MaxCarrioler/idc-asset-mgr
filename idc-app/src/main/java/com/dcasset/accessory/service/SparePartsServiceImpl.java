@@ -58,7 +58,7 @@ public class SparePartsServiceImpl implements SparePartsService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public List<SparePartDTO> listByCategory(Long categoryId) {
         findCategory(categoryId);
         List<SparePartEntity> parts = sparePartRepository.findByCategoryIdOrderByIdAsc(categoryId);
@@ -77,7 +77,7 @@ public class SparePartsServiceImpl implements SparePartsService {
     }
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public SparePartDTO getById(Long id) {
         SparePartEntity entity = findEntity(id);
         outboundRepository.findFirstBySparePartIdOrderByOutboundTimeDesc(id)
@@ -112,7 +112,15 @@ public class SparePartsServiceImpl implements SparePartsService {
     @Override
     @Transactional
     public void delete(Long id) {
-        sparePartRepository.delete(findEntity(id));
+        SparePartEntity entity = findEntity(id);
+        String status = entity.getStatus();
+        if ("RESERVED".equals(status)) {
+            throw new IllegalArgumentException("备件已被调取申请预留，无法删除：" + entity.getSerialNumber());
+        }
+        if ("OUT".equals(status)) {
+            throw new IllegalArgumentException("备件已出库装机、存在流转记录，无法删除：" + entity.getSerialNumber());
+        }
+        sparePartRepository.delete(entity);
     }
 
     private SparePartCategoryEntity findCategory(Long categoryId) {
@@ -203,7 +211,8 @@ public class SparePartsServiceImpl implements SparePartsService {
         if ("OUT".equals(part.getStatus()) || part.getStatus() == null) {
             part.setStatus("OUT");
         }
-        sparePartRepository.save(part);
+        // 仅用于读取时修正展示口径（现役服务器以最新出库记录为准），不在读路径写库；
+        // 出库操作已在 outbound() 中持久化这些字段，无需在 GET 中重复落库。
     }
 
     private Map<Long, AccessoryOutboundEntity> latestOutboundBySparePartId(List<Long> sparePartIds) {

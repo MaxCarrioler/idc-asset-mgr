@@ -11,7 +11,7 @@
 ┌─────────────┐     ┌────────────────────────────┐     ┌──────────────┐
 │  Frontend   │────▶│          Backend           │────▶│ PostgreSQL   │
 │  (Nginx)    │     │  idc-app（Spring Boot）     │     │ idc_manager  │
-│  :3000→80   │     │           :8080            │     │    :5432     │
+│  :3000→80   │     │           :8080            │     │    :5433     │
 └─────────────┘     └────────────────────────────┘     └──────────────┘
 ```
 
@@ -75,9 +75,9 @@ docker compose logs -f
 
 | 容器名 | 镜像/构建 | 端口 | 说明 |
 |--------|-----------|------|------|
-| dc-postgres | postgres:18-alpine | 5432 | 单库 `idc_manager`（业务 + RBAC） |
+| dc-postgres | postgres:16-alpine | 5433 | 单库 `idc_manager`（业务 + RBAC） |
 | dc-backend | 本地构建（`docker/Dockerfile.backend` 多阶段） | 8080 | 单体后端：认证 / 用户中心 / 业务 |
-| dc-frontend | 本地构建（`frontend/Dockerfile`） | 3000→80 | Vue3 前端（Nginx） |
+| dc-frontend | 本地构建（`frontend/Dockerfile`） | 3000→80 | React 18 + Ant Design 5 前端（Nginx） |
 
 ## 数据库配置
 

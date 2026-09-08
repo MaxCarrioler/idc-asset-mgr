@@ -45,6 +45,9 @@ public class AccessoryTransferRequestDTO {
 
     private String rejectReason;
 
+    /** 审批通过备注 */
+    private String approveRemark;
+
     private Long approverId;
 
     private String approverName;

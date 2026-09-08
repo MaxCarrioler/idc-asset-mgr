@@ -1,0 +1,62 @@
+/* ===== 全局过渡动画 — 减少视觉闪屏 ===== */
+
+/* 页面切换淡入 */
+@keyframes pageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-fade-in {
+  animation: pageFadeIn 0.25s ease-out both;
+}
+
+/* antd 组件全局过渡优化 */
+.ant-table-wrapper,
+.ant-card,
+.ant-tabs {
+  transition: opacity 0.2s ease;
+}
+
+/* 侧边栏折叠平滑过渡 */
+.ant-layout-sider {
+  transition: all 0.2s cubic-bezier(0.2, 0, 0, 1) !important;
+}
+
+/* Menu 展开/收起动画优化 */
+.ant-menu-inline .ant-menu-sub {
+  transition: height 0.2s cubic-bezier(0.2, 0, 0, 1),
+              opacity 0.2s ease !important;
+}
+
+/* Modal 弹出动画增强 */
+.ant-modal-mask {
+  transition: opacity 0.2s ease !important;
+}
+
+.ant-modal-wrap {
+  transition: opacity 0.2s ease !important;
+}
+
+/* Skeleton 加载态闪烁更柔和 */
+.ant-skeleton-active .ant-skeleton-content .ant-skeleton-paragraph > li,
+.ant-skeleton-active .ant-skeleton-content .ant-skeleton-title,
+.ant-skeleton-active .ant-skeleton-header .ant-skeleton-avatar {
+  animation-duration: 1.8s;
+}
+
+/* 避免 body 滚动条出现/消失引起的布局偏移 */
+html {
+  overflow-y: scroll;
+}
+
+/* 全局减少不必要的重绘 */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

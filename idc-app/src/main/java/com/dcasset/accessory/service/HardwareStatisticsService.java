@@ -11,7 +11,8 @@ public interface HardwareStatisticsService {
     HardwareStatisticsDTO getHardwareStatistics(
             List<String> regions,
             List<Long> serverTypeIds,
-            List<String> cpuArchitectures);
+            List<String> cpuArchitectures,
+            List<String> hardDiskTypes);
 
     Map<Long, ServerDTO> fetchAllServers();
 }

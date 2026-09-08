@@ -1,13 +1,13 @@
 services:
   postgres:
-    image: postgres:18-alpine
+    image: postgres:16-alpine
     container_name: dc-postgres
     environment:
       POSTGRES_USER: dcasset
       POSTGRES_PASSWORD: dcasset123
       POSTGRES_DB: idc_manager
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

@@ -1,5 +1,12 @@
 package com.dcasset.server.service;
 
+import com.dcasset.accessory.repository.CpuRepository;
+import com.dcasset.accessory.repository.HardDiskRepository;
+import com.dcasset.accessory.repository.HbaCardRepository;
+import com.dcasset.accessory.repository.MemoryRepository;
+import com.dcasset.accessory.repository.NetworkCardRepository;
+import com.dcasset.accessory.repository.PowerModuleRepository;
+import com.dcasset.accessory.repository.RaidSasCardRepository;
 import com.dcasset.common.dto.ServerDTO;
 import com.dcasset.common.dto.ServerOperationRecordDTO;
 import com.dcasset.common.result.PageResult;
@@ -45,6 +52,13 @@ public class ServerServiceImpl implements ServerService {
     private final ServerOperationRecordRepository operationRecordRepository;
     private final ServerTypeService serverTypeService;
     private final CpuArchitectureService cpuArchitectureService;
+    private final CpuRepository cpuRepository;
+    private final MemoryRepository memoryRepository;
+    private final HardDiskRepository hardDiskRepository;
+    private final NetworkCardRepository networkCardRepository;
+    private final HbaCardRepository hbaCardRepository;
+    private final RaidSasCardRepository raidSasCardRepository;
+    private final PowerModuleRepository powerModuleRepository;
 
     @Override
     public PageResult<ServerDTO> list(String keyword, int page, int size) {
@@ -53,6 +67,13 @@ public class ServerServiceImpl implements ServerService {
                 .map(this::toDto)
                 .collect(Collectors.toList());
         return new PageResult<>(records, pageData.getTotalElements(), page, size, pageData.getTotalPages());
+    }
+
+    @Override
+    public List<ServerDTO> listAll() {
+        return serverRepository.findAll().stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -95,7 +116,16 @@ public class ServerServiceImpl implements ServerService {
     @Override
     @Transactional
     public void delete(Long id) {
-        serverRepository.delete(findEntity(id));
+        ServerEntity entity = findEntity(id);
+        // 级联清理该服务器下的全部配件，避免遗留孤儿数据（各配件仓库已提供 deleteByServerId）
+        cpuRepository.deleteByServerId(id);
+        memoryRepository.deleteByServerId(id);
+        hardDiskRepository.deleteByServerId(id);
+        networkCardRepository.deleteByServerId(id);
+        hbaCardRepository.deleteByServerId(id);
+        raidSasCardRepository.deleteByServerId(id);
+        powerModuleRepository.deleteByServerId(id);
+        serverRepository.delete(entity);
         operationRecordRepository.findByServerIdOrderByModifiedAtDesc(id)
                 .forEach(record -> operationRecordRepository.delete(record));
     }

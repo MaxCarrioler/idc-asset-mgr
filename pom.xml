@@ -13,7 +13,7 @@
 
     <groupId>com.dcasset</groupId>
     <artifactId>idc-manager</artifactId>
-    <version>1.1.0</version>
+    <version>2.1.0</version>
     <packaging>pom</packaging>
     <name>IDC 基础设施管理系统</name>
     <description>数据中心资产配件流通系统（轻量单体版）</description>

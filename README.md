@@ -6,22 +6,22 @@
 
 ```
 ┌─────────────┐     ┌────────────────────────────┐     ┌──────────────┐
-│  Vue3 前端   │────▶│          idc-app           │────▶│ PostgreSQL   │
-│   :3000     │     │ Spring Boot 单体 :8080      │     │   :5432      │
+│ React 前端   │────▶│          idc-app           │────▶│ PostgreSQL   │
+│   :3000     │     │ Spring Boot 单体 :8080      │     │   :5433      │
 └─────────────┘     │ 认证 / 用户中心 / 服务器 /   │     │ idc_manager  │
                     │ 配件 / 备件 / 配件中心        │     └──────────────┘
                     └────────────────────────────┘
 ```
 
-单应用 `idc-app`（JDK 17 + Spring Boot 3.3 + Spring Security + JWT + JPA）+ PostgreSQL 单库 + Vue3 前端，共 3 个容器/进程，无任何微服务中间件（无 Nacos / Redis / MySQL / 网关）。
+单应用 `idc-app`（JDK 17 + Spring Boot 3.3 + Spring Security + JWT + JPA）+ PostgreSQL 单库 + React 18 前端，共 3 个容器/进程，无任何微服务中间件（无 Nacos / Redis / MySQL / 网关）。
 
 ## 模块说明
 
 | 模块 | 端口 | 说明 |
 |------|------|------|
-| PostgreSQL | 5432 | 单库 `idc_manager`（业务 + RBAC 全部数据，JPA 自动建表） |
+| PostgreSQL | 5433 | 单库 `idc_manager`（业务 + RBAC 全部数据，JPA 自动建表） |
 | idc-app（backend） | 8080 | 单体后端：认证（`/auth/**`）、用户中心（`/admin/**`）、业务（`/api/**`） |
-| frontend | 3000 | Vue3 + Element Plus 前端（需登录） |
+| frontend | 3000 | React 18 + Ant Design 5 前端（需登录） |
 
 后端包结构（`com.dcasset`）：
 
@@ -60,8 +60,8 @@
 | 导航 | 说明 |
 |------|------|
 | 服务器列表 | 服务器分页列表、搜索、新增/编辑/删除 |
-| 数据统计 | Region / 服务器类型 / CPU 架构多维度筛选，硬件资源汇总表格 |
-| 元数据管理 | 服务器类型、CPU 架构等元数据自定义增删改查 |
+| 数据统计 | Region / 服务器类型 / CPU 架构 / 硬盘类型多维度筛选，硬件资源汇总表格 |
+| 元数据管理 | 服务器类型、CPU 架构、硬盘类型等元数据自定义增删改查 |
 | 备件统计 | 按规格种类汇总备件数量，支持种类与明细 CRUD；出库后与配件中心联动（在库减量 / 明细状态） |
 | 配件中心 | 调取申请 → 选定序列号审批 → 出库（来源服务器：真实序列号或「无」）→ 流转记录（**现役服务器**）→ **导出 Excel** |
 | 用户中心 | （仅超管）页内 Tab：用户管理（审批/注销/赋角色）、角色管理（CRUD/授权） |
@@ -76,6 +76,11 @@
 - **CPU 架构**：自定义新建、编辑、删除
   - 内置架构：**X86_64**、**ARM64**，不可删除
   - 供服务器录入与数据统计筛选使用
+- **硬盘类型**：自定义新建、编辑、删除
+  - 内置类型：**SAS**、**SATA**、**SSD**，不可删除
+  - 供硬盘配件录入、备件分类与数据统计筛选使用
+  - 类型编码在统计筛选中同时比对硬盘的介质类型（`diskType`）与接口类型（`interfaceType`）
+  - 删除限制：内置类型不可删；仍有硬盘配件引用该类型编码时不可删
 
 ### 服务器列表
 
@@ -87,10 +92,11 @@
 
 ### 数据统计
 
-- **默认**：三组筛选均为空，展示全量服务器硬件资源汇总
-- **筛选**：支持 Region 区域、服务器类型（ID）、CPU 架构多选，变更后实时重新聚合
+- **默认**：四组筛选均为空，展示全量服务器硬件资源汇总
+- **筛选**：支持 Region 区域、服务器类型（ID）、CPU 架构、硬盘类型多选，变更后实时重新聚合
+- **硬盘类型筛选口径**：硬盘类型属于配件级属性，类型编码**同时比对硬盘的介质类型（`diskType`，如 SSD / HDD）与接口类型（`interfaceType`，如 SAS / SATA / NVMe）**，任一字段命中即视为匹配（兼容 SAS / SATA / SSD 这类跨口径类型定义）；服务器下只要存在任一块匹配硬盘即命中筛选，命中后聚合该服务器全量硬件资源；选项数据源为元数据管理中的硬盘类型（内置 SAS / SATA / SSD）
 - **主表格**：固定表头展示 CPU 核心总数、线程总数、内存总容量、各规格硬盘物理总容量（1.8T / 2.4T / 3.84T / 4T / 8T）、硬盘物理总容量
-- **筛选数据源**：`/api/servers/regions`、`/api/server-types`、`/api/cpu-architectures`
+- **筛选数据源**：`/api/servers/regions`、`/api/server-types`、`/api/cpu-architectures`、`/api/hard-disk-types`
 
 ### 备件统计
 
@@ -155,7 +161,7 @@ docker compose down        # 停止
 docker compose down -v     # 停止并清空数据库
 ```
 
-仅 3 个容器：`dc-postgres`（:5432）、`dc-backend`（:8080）、`dc-frontend`（:3000）。详细说明见 [DEPLOYMENT.md](DEPLOYMENT.md)。
+仅 3 个容器：`dc-postgres`（:5433）、`dc-backend`（:8080）、`dc-frontend`（:3000）。详细说明见 [DEPLOYMENT.md](DEPLOYMENT.md)。
 
 ### 方式 B：本地单机启动（推荐用于开发调试）
 
@@ -213,8 +219,9 @@ scripts/start-local.sh
 | http://localhost:8080/api/servers | 服务器 API |
 | http://localhost:8080/api/server-types | 服务器类型 API |
 | http://localhost:8080/api/cpu-architectures | CPU 架构元数据 API |
+| http://localhost:8080/api/hard-disk-types | 硬盘类型元数据 API |
 | http://localhost:8080/api/statistics/hardware | 硬件资源统计（全量） |
-| http://localhost:8080/api/statistics/hardware?regions=华北-北京&serverTypeIds=1,2&cpuArchitectures=X86_64 | 多维度筛选统计 |
+| http://localhost:8080/api/statistics/hardware?regions=华北-北京&serverTypeIds=1,2&cpuArchitectures=X86_64&hardDiskTypes=SAS,SSD | 多维度筛选统计 |
 | http://localhost:8080/api/spare-part-categories | 备件种类 CRUD |
 | http://localhost:8080/api/spare-parts/summary | 备件库存汇总 |
 | http://localhost:8080/api/spare-parts/items?categoryId=1 | 按种类查询备件明细 |
@@ -240,34 +247,38 @@ frontend/
 ├── index.html
 ├── package.json
 ├── vite.config.js
+├── .npmrc                          # npm 镜像源配置
 └── src/
-    ├── main.js
-    ├── App.vue
-    ├── api/index.js              # Axios + Bearer 令牌 + 401 自动刷新
-    ├── config/accessory.js
-    ├── directives/permission.js  # v-permission
-    ├── stores/auth.js            # 登录态
-    ├── router/index.js           # 路由守卫
-    ├── layouts/MainLayout.vue
+    ├── main.jsx                    # 入口（ConfigProvider + AuthProvider）
+    ├── App.jsx                     # RouterProvider
+    ├── api/index.js                # Axios + Bearer 令牌 + 401 自动刷新
+    ├── api/userCenter.js           # 用户中心 API
+    ├── config/accessory.js         # 配件类型配置
+    ├── utils/format.js             # 格式化工具
+    ├── stores/AuthContext.jsx       # React Context 登录态 + 权限
+    ├── router/index.jsx            # React Router v6 + ProtectedRoute
+    ├── components/Permission.jsx   # 权限包裹组件（替代 v-permission）
+    ├── layouts/MainLayout.jsx      # antd Layout 主布局
     ├── views/
-    │   ├── Login.vue
-    │   ├── Register.vue          # 访客注册（待审批）
-    │   ├── UserCenter.vue        # 用户 / 角色管理（超管）
-    │   ├── AccessoryCenter.vue   # 配件中心（含 Excel 导出）
-    │   ├── ServerList.vue
-    │   ├── Statistics.vue
-    │   ├── MetadataManagement.vue
-    │   ├── SparePartsStats.vue
-    │   ├── SparePartDetail.vue
-    │   ├── AccessoryDetail.vue
-    │   └── OperationRecords.vue
+    │   ├── Login.jsx
+    │   ├── Register.jsx            # 访客注册（待审批）
+    │   ├── UserCenter.jsx          # 用户 / 角色管理（超管）
+    │   ├── AccessoryCenter.jsx     # 配件中心（含 Excel 导出）
+    │   ├── ServerList.jsx
+    │   ├── Statistics.jsx
+    │   ├── MetadataManagement.jsx
+    │   ├── SparePartsStats.jsx
+    │   ├── SparePartDetail.jsx
+    │   ├── AccessoryDetail.jsx
+    │   └── OperationRecords.jsx
     └── components/
-        ├── ServerFormDialog.vue
-        ├── ServerTypeFormDialog.vue
-        ├── CpuArchitectureFormDialog.vue
-        ├── SparePartCategoryFormDialog.vue
-        ├── SparePartFormDialog.vue
-        └── AccessoryFormDialog.vue
+        ├── ServerFormDialog.jsx
+        ├── ServerTypeFormDialog.jsx
+        ├── CpuArchitectureFormDialog.jsx
+        ├── HardDiskTypeFormDialog.jsx
+        ├── SparePartCategoryFormDialog.jsx
+        ├── SparePartFormDialog.jsx
+        └── AccessoryFormDialog.jsx
 ```
 
 ## 技术栈
@@ -289,10 +300,10 @@ frontend/
 
 | 技术 | 版本 | 说明 |
 |------|------|------|
-| Vue | 3.5.x | `^3.5.13` |
-| Element Plus | 2.x | `^2.9.1` |
-| Vite | 6.x | `^6.0.5` |
-| Vue Router | 4.x | `^4.5.0` |
+| React | 18.x | `^18.3.1` |
+| Ant Design | 5.x | `^5.22.0` |
+| Vite | 6.x | `^6.0.5`（`@vitejs/plugin-react`） |
+| React Router | 6.x | `^6.28.0`（createBrowserRouter + lazy） |
 | Axios | 1.x | `^1.7.9` |
 | Node.js | 20+ | 开发 / 构建；Docker 用 `node:20-alpine` |
 
@@ -300,6 +311,6 @@ frontend/
 
 | 组件 | 版本 | Docker 镜像 / 运行时 |
 |------|------|----------------------|
-| PostgreSQL | 18.x | `postgres:18-alpine` |
+| PostgreSQL | 16.x | `postgres:16-alpine` |
 | 后端运行时 | JRE 17 | `eclipse-temurin:17-jre-alpine` |
 | 前端生产托管 | Nginx 1.27 | `nginx:1.27-alpine`（多阶段构建） |

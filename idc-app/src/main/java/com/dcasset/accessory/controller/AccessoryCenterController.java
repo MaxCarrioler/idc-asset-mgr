@@ -59,6 +59,13 @@ public class AccessoryCenterController {
         return Result.success(accessoryTransferService.reject(id, reason));
     }
 
+    @Operation(summary = "撤销审批（释放预留备件，回退待审批）")
+    @PreAuthorize("hasAuthority('accessory:transfer:approve')")
+    @PostMapping("/requests/{id}/revoke")
+    public Result<AccessoryTransferRequestDTO> revoke(@PathVariable Long id) {
+        return Result.success(accessoryTransferService.revoke(id));
+    }
+
     @Operation(summary = "出库（强制携带来源服务器）")
     @PreAuthorize("hasAuthority('accessory:transfer:outbound')")
     @PostMapping("/requests/{id}/outbound")

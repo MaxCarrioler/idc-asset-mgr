@@ -29,7 +29,8 @@ public class NetworkCardService extends BaseAccessoryService<NetworkCardEntity, 
 
     @Override
     protected void copyDtoToEntity(NetworkCardDTO dto, NetworkCardEntity entity) {
-        BeanUtils.copyProperties(dto, entity);
+        // 排除 id：编辑时前端不传 id，避免把已加载实体的主键置空导致误判为新增
+        BeanUtils.copyProperties(dto, entity, "id");
     }
 
     @Override
