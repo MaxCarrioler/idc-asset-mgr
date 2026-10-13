@@ -1,5 +1,10 @@
 package com.dcasset.server.service;
 
+import com.dcasset.accessory.entity.AccessoryOutboundEntity;
+import com.dcasset.accessory.entity.AccessoryTransferRequestEntity;
+import com.dcasset.accessory.entity.SparePartEntity;
+import com.dcasset.accessory.repository.AccessoryOutboundRepository;
+import com.dcasset.accessory.repository.AccessoryTransferRequestRepository;
 import com.dcasset.accessory.repository.CpuRepository;
 import com.dcasset.accessory.repository.HardDiskRepository;
 import com.dcasset.accessory.repository.HbaCardRepository;
@@ -7,6 +12,7 @@ import com.dcasset.accessory.repository.MemoryRepository;
 import com.dcasset.accessory.repository.NetworkCardRepository;
 import com.dcasset.accessory.repository.PowerModuleRepository;
 import com.dcasset.accessory.repository.RaidSasCardRepository;
+import com.dcasset.accessory.repository.SparePartRepository;
 import com.dcasset.common.dto.ServerDTO;
 import com.dcasset.common.dto.ServerOperationRecordDTO;
 import com.dcasset.common.result.PageResult;
@@ -59,6 +65,9 @@ public class ServerServiceImpl implements ServerService {
     private final HbaCardRepository hbaCardRepository;
     private final RaidSasCardRepository raidSasCardRepository;
     private final PowerModuleRepository powerModuleRepository;
+    private final AccessoryTransferRequestRepository transferRequestRepository;
+    private final AccessoryOutboundRepository outboundRepository;
+    private final SparePartRepository sparePartRepository;
 
     @Override
     public PageResult<ServerDTO> list(String keyword, int page, int size) {
@@ -88,7 +97,7 @@ public class ServerServiceImpl implements ServerService {
         validateCpuArchitecture(dto.getCpuArchitecture());
         ServerEntity entity = new ServerEntity();
         BeanUtils.copyProperties(dto, entity, "id", "updatedAt", "changeReason");
-        entity.setId(null);
+        entity.setId((Long) null);
         entity.setServerType(normalizeServerType(dto.getServerType()));
         ServerEntity saved = serverRepository.save(entity);
         saveOperationRecord(saved.getId(), "新建服务器：" + saved.getServerName(), "初始录入");
@@ -110,7 +119,45 @@ public class ServerServiceImpl implements ServerService {
         if (!changeContent.isEmpty()) {
             saveOperationRecord(id, changeContent, dto.getChangeReason());
         }
+
+        // 级联更新关联记录中的服务器名称
+        if (!Objects.equals(oldDto.getServerName(), dto.getServerName())) {
+            cascadeUpdateServerName(id, dto.getServerName());
+        }
+
         return toDto(saved);
+    }
+
+    private void cascadeUpdateServerName(Long serverId, String newName) {
+        if (newName == null) return;
+        // 更新调取申请中的目标服务器名称
+        List<AccessoryTransferRequestEntity> requests = transferRequestRepository.findByTargetServerId(serverId);
+        for (AccessoryTransferRequestEntity req : requests) {
+            req.setTargetServerName(newName);
+            transferRequestRepository.save(req);
+        }
+        // 更新出库记录中的来源/目标服务器名称
+        List<AccessoryOutboundEntity> asSource = outboundRepository.findBySourceServerId(serverId);
+        for (AccessoryOutboundEntity ob : asSource) {
+            ob.setSourceServerName(newName);
+            outboundRepository.save(ob);
+        }
+        List<AccessoryOutboundEntity> asTarget = outboundRepository.findByTargetServerId(serverId);
+        for (AccessoryOutboundEntity ob : asTarget) {
+            ob.setTargetServerName(newName);
+            outboundRepository.save(ob);
+        }
+        // 更新备件中的来源/现役服务器名称
+        List<SparePartEntity> spareAsSource = sparePartRepository.findBySourceServerId(serverId);
+        for (SparePartEntity part : spareAsSource) {
+            part.setSourceServerName(newName);
+            sparePartRepository.save(part);
+        }
+        List<SparePartEntity> asActive = sparePartRepository.findByActiveServerId(serverId);
+        for (SparePartEntity part : asActive) {
+            part.setActiveServerName(newName);
+            sparePartRepository.save(part);
+        }
     }
 
     @Override

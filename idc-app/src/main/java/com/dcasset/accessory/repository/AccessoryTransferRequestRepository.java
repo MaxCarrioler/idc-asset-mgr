@@ -18,6 +18,8 @@ public interface AccessoryTransferRequestRepository extends JpaRepository<Access
 
     List<AccessoryTransferRequestEntity> findByStatusOrderByCreatedAtDesc(String status);
 
+    List<AccessoryTransferRequestEntity> findByTargetServerId(Long targetServerId);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select r from AccessoryTransferRequestEntity r where r.id = :id")
     Optional<AccessoryTransferRequestEntity> findByIdForUpdate(@Param("id") Long id);

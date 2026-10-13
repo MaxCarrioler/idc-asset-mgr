@@ -14,6 +14,7 @@ export default function ServerList() {
   const [dialogVisible, setDialogVisible] = useState(false)
   const [editingId, setEditingId] = useState(null)
   const [cpuArchitectures, setCpuArchitectures] = useState([])
+  const [serverTypes, setServerTypes] = useState([])
 
   const pageSize = 10
 
@@ -37,8 +38,17 @@ export default function ServerList() {
     request('/api/cpu-architectures')
       .then((data) => setCpuArchitectures(data || []))
       .catch((e) => showError(e))
+    request('/api/server-types')
+      .then((data) => setServerTypes(data || []))
+      .catch((e) => showError(e))
     loadServers(1)
   }, [])
+
+  const resolveServerTypeLabel = (code) => {
+    if (!code) return '-'
+    const matched = serverTypes.find((t) => t.code === code)
+    return matched?.name || code
+  }
 
   const handleSearch = () => {
     setCurrentPage(1)
@@ -81,6 +91,12 @@ export default function ServerList() {
       render: (text, row) => (
         <Link to={`/servers/${row.id}/accessories`} style={{ color: '#1677ff' }}>{text}</Link>
       )
+    },
+    {
+      title: '服务器类型',
+      dataIndex: 'serverType',
+      width: 110,
+      render: (val) => resolveServerTypeLabel(val)
     },
     { title: 'Region名称', dataIndex: 'region', width: 110 },
     { title: '序列号', dataIndex: 'serialNumber', width: 120 },

@@ -47,6 +47,7 @@ public class SparePartCategoryServiceImpl implements SparePartCategoryService {
         entity.setCode(code);
         entity.setName(dto.getName().trim());
         entity.setDescription(trimToNull(dto.getDescription()));
+        entity.setAccessoryType(trimToNull(dto.getAccessoryType()));
         entity.setBuiltIn(false);
         return toDto(categoryRepository.save(entity));
     }
@@ -58,6 +59,9 @@ public class SparePartCategoryServiceImpl implements SparePartCategoryService {
         validateName(dto.getName());
         entity.setName(dto.getName().trim());
         entity.setDescription(trimToNull(dto.getDescription()));
+        if (dto.getAccessoryType() != null) {
+            entity.setAccessoryType(trimToNull(dto.getAccessoryType()));
+        }
         return toDto(categoryRepository.save(entity));
     }
 
@@ -65,9 +69,6 @@ public class SparePartCategoryServiceImpl implements SparePartCategoryService {
     @Transactional
     public void delete(Long id) {
         SparePartCategoryEntity entity = findEntity(id);
-        if (Boolean.TRUE.equals(entity.getBuiltIn())) {
-            throw new IllegalArgumentException("内置备件种类不可删除: " + entity.getName());
-        }
         long itemCount = sparePartRepository.countByCategoryId(id);
         if (itemCount > 0) {
             throw new IllegalArgumentException("该种类下仍有 " + itemCount + " 条备件记录，无法删除");

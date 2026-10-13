@@ -7,6 +7,8 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.List;
+
 @Configuration("accessoryDataInitializer")
 @RequiredArgsConstructor
 public class DataInitializer {
@@ -25,6 +27,7 @@ public class DataInitializer {
     CommandLineRunner initAccessories() {
         return args -> {
             initSparePartCategories();
+            backfillCategoryTypes();
             if (cpuRepository.count() == 0) {
                 initStorageServer1();
                 initStorageServer2();
@@ -35,6 +38,34 @@ public class DataInitializer {
             }
             backfillSparePartDefaults();
         };
+    }
+
+    private void backfillCategoryTypes() {
+        List<SparePartCategoryEntity> categories = sparePartCategoryRepository.findAll();
+        boolean dirty = false;
+        for (SparePartCategoryEntity cat : categories) {
+            if (cat.getAccessoryType() != null) continue;
+            String type = resolveAccessoryType(cat.getCode());
+            if (type != null) {
+                cat.setAccessoryType(type);
+                dirty = true;
+            }
+        }
+        if (dirty) {
+            sparePartCategoryRepository.saveAll(categories);
+        }
+    }
+
+    private String resolveAccessoryType(String code) {
+        if (code == null) return null;
+        if (code.startsWith("HDD_")) return "hard-disk";
+        if (code.startsWith("CPU_")) return "cpu";
+        if (code.startsWith("MEMORY_")) return "memory";
+        if (code.startsWith("NIC_")) return "network-card";
+        if (code.startsWith("RAID_") || code.startsWith("SAS_")) return "raid-sas-card";
+        if (code.startsWith("HBA_")) return "hba-card";
+        if (code.startsWith("PSU_")) return "power-module";
+        return null;
     }
 
     private void backfillSparePartDefaults() {
@@ -57,8 +88,6 @@ public class DataInitializer {
     }
 
     private void initSparePartCategories() {
-        // 一次性迁移：仅当仍为旧「HARD_DISK」单一种类、且新粒度种类尚未建立时才清空重建；
-        // 迁移完成后即使用户自建同名「HARD_DISK」编码，也不会在重启时误删全部备件数据。
         boolean legacySchema = sparePartCategoryRepository.findByCode("HARD_DISK").isPresent();
         boolean alreadyMigrated = sparePartCategoryRepository.findByCode("HDD_1_8T").isPresent();
         if (legacySchema && !alreadyMigrated) {
@@ -68,13 +97,13 @@ public class DataInitializer {
         if (sparePartCategoryRepository.count() > 0) {
             return;
         }
-        saveCategory("HDD_1_8T", "1.8T 硬盘", "1.8TB NVMe/SSD 硬盘备件", true);
-        saveCategory("HDD_8T", "8T 硬盘", "8TB SAS/SATA 硬盘备件", true);
-        saveCategory("HDD_4T", "4T 硬盘", "4TB SAS/SATA 硬盘备件", true);
-        saveCategory("CPU_XEON_G6330", "Intel Xeon Gold 6330", "28核/56线程 CPU 备件", true);
-        saveCategory("MEMORY_32GB_DDR4", "32GB DDR4 内存", "32GB DDR4 ECC RDIMM 内存条备件", true);
-        saveCategory("NIC_10G_4PORT", "10G 四口网卡", "10Gbps 四口网卡备件", true);
-        saveCategory("PSU_1400W", "1400W 电源", "1400W 服务器电源模块备件", true);
+        saveCategory("HDD_1_8T", "1.8T 硬盘", "1.8TB NVMe/SSD 硬盘备件", "hard-disk", true);
+        saveCategory("HDD_8T", "8T 硬盘", "8TB SAS/SATA 硬盘备件", "hard-disk", true);
+        saveCategory("HDD_4T", "4T 硬盘", "4TB SAS/SATA 硬盘备件", "hard-disk", true);
+        saveCategory("CPU_XEON_G6330", "Intel Xeon Gold 6330", "28核/56线程 CPU 备件", "cpu", true);
+        saveCategory("MEMORY_32GB_DDR4", "32GB DDR4 内存", "32GB DDR4 ECC RDIMM 内存条备件", "memory", true);
+        saveCategory("NIC_10G_4PORT", "10G 四口网卡", "10Gbps 四口网卡备件", "network-card", true);
+        saveCategory("PSU_1400W", "1400W 电源", "1400W 服务器电源模块备件", "power-module", true);
     }
 
     private void initSparePartInventory() {
@@ -103,11 +132,12 @@ public class DataInitializer {
                 .orElseThrow(() -> new IllegalStateException("备件种类不存在: " + code));
     }
 
-    private void saveCategory(String code, String name, String description, boolean builtIn) {
+    private void saveCategory(String code, String name, String description, String accessoryType, boolean builtIn) {
         SparePartCategoryEntity entity = new SparePartCategoryEntity();
         entity.setCode(code);
         entity.setName(name);
         entity.setDescription(description);
+        entity.setAccessoryType(accessoryType);
         entity.setBuiltIn(builtIn);
         sparePartCategoryRepository.save(entity);
     }

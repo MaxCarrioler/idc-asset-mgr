@@ -15,7 +15,8 @@ const Register = lazy(() => import('../views/Register'))
 const ServerList = lazy(() => import('../views/ServerList'))
 const Statistics = lazy(() => import('../views/Statistics'))
 const MetadataManagement = lazy(() => import('../views/MetadataManagement'))
-const SparePartsStats = lazy(() => import('../views/SparePartsStats'))
+const SparePartTypeList = lazy(() => import('../views/SparePartTypeList'))
+const SparePartCategoryList = lazy(() => import('../views/SparePartCategoryList'))
 const SparePartDetail = lazy(() => import('../views/SparePartDetail'))
 const AccessoryCenter = lazy(() => import('../views/AccessoryCenter'))
 const AccessoryDetail = lazy(() => import('../views/AccessoryDetail'))
@@ -85,10 +86,10 @@ export const router = createBrowserRouter([
       {
         path: 'spare-parts',
         children: [
-          { index: true, element: <Navigate to="/spare-parts/summary" replace /> },
-          { path: 'summary', element: <SparePartsStats /> },
-          { path: 'categories', element: <SparePartsStats /> },
-          { path: ':categoryId', element: <SparePartDetail /> }
+          { index: true, element: <Navigate to="/spare-parts/cpu" replace /> },
+          { path: ':type', element: <SparePartTypeList /> },
+          { path: ':type/categories', element: <SparePartCategoryList /> },
+          { path: ':type/:categoryId', element: <SparePartDetail /> }
         ]
       },
       {

@@ -87,4 +87,12 @@ public class AccessoryCenterController {
     public Result<List<SparePartDTO>> availableSpareParts(@RequestParam Long categoryId) {
         return Result.success(accessoryTransferService.listAvailableSpareParts(categoryId));
     }
+
+    @Operation(summary = "删除申请（仅管理员）")
+    @PreAuthorize("hasAnyRole('ROLE_ADMIN')")
+    @DeleteMapping("/requests/{id}")
+    public Result<Void> deleteRequest(@PathVariable Long id) {
+        accessoryTransferService.deleteRequest(id);
+        return Result.success("删除成功", null);
+    }
 }

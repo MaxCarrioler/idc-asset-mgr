@@ -2,6 +2,8 @@ package com.dcasset.server.service;
 
 import com.dcasset.accessory.repository.HardDiskRepository;
 import com.dcasset.common.dto.HardDiskTypeDTO;
+import com.dcasset.security.CurrentUser;
+import com.dcasset.security.SecurityUtils;
 import com.dcasset.server.entity.HardDiskTypeEntity;
 import com.dcasset.server.repository.HardDiskTypeRepository;
 import lombok.RequiredArgsConstructor;
@@ -72,7 +74,8 @@ public class HardDiskTypeServiceImpl implements HardDiskTypeService {
     @Transactional
     public void delete(Long id) {
         HardDiskTypeEntity entity = findEntity(id);
-        if (Boolean.TRUE.equals(entity.getBuiltIn())) {
+        boolean isAdmin = isAdminUser();
+        if (Boolean.TRUE.equals(entity.getBuiltIn()) && !isAdmin) {
             throw new IllegalArgumentException("内置硬盘类型不可删除: " + entity.getName());
         }
         long usageCount = hardDiskRepository.countByDiskType(entity.getCode());
@@ -80,6 +83,16 @@ public class HardDiskTypeServiceImpl implements HardDiskTypeService {
             throw new IllegalArgumentException("该硬盘类型下仍有 " + usageCount + " 块硬盘，无法删除");
         }
         hardDiskTypeRepository.delete(entity);
+    }
+
+    private boolean isAdminUser() {
+        CurrentUser user = SecurityUtils.getUser();
+        if (user == null) return false;
+        if (user.getPermissions() != null && user.getPermissions().contains("*:*:*")) return true;
+        if (user.getRoles() != null) {
+            return user.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getRoleCode()));
+        }
+        return false;
     }
 
     private HardDiskTypeEntity findEntity(Long id) {

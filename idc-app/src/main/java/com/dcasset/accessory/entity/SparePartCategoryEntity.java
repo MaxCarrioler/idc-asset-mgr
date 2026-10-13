@@ -23,6 +23,10 @@ public class SparePartCategoryEntity {
     @Column(length = 500)
     private String description;
 
+    /** 配件大类：cpu / memory / hard-disk / network-card / raid-sas-card / hba-card / power-module */
+    @Column(length = 30)
+    private String accessoryType;
+
     @Column(nullable = false)
     private Boolean builtIn;
 

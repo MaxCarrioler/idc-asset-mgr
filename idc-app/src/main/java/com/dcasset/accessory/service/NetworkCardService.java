@@ -55,6 +55,6 @@ public class NetworkCardService extends BaseAccessoryService<NetworkCardEntity, 
 
     @Override
     protected void setIdNull(NetworkCardEntity entity) {
-        entity.setId(null);
+        entity.setId((Long) null);
     }
 }

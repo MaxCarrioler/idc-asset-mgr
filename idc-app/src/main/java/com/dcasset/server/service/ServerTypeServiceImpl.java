@@ -1,6 +1,8 @@
 package com.dcasset.server.service;
 
 import com.dcasset.common.dto.ServerTypeDTO;
+import com.dcasset.security.CurrentUser;
+import com.dcasset.security.SecurityUtils;
 import com.dcasset.server.entity.ServerTypeEntity;
 import com.dcasset.server.repository.ServerRepository;
 import com.dcasset.server.repository.ServerTypeRepository;
@@ -76,7 +78,8 @@ public class ServerTypeServiceImpl implements ServerTypeService {
     @Transactional
     public void delete(Long id) {
         ServerTypeEntity entity = findEntity(id);
-        if (Boolean.TRUE.equals(entity.getBuiltIn())) {
+        boolean isAdmin = isAdminUser();
+        if (Boolean.TRUE.equals(entity.getBuiltIn()) && !isAdmin) {
             throw new IllegalArgumentException("内置类型不可删除: " + entity.getName());
         }
         long usageCount = serverRepository.countByServerType(entity.getCode());
@@ -84,6 +87,16 @@ public class ServerTypeServiceImpl implements ServerTypeService {
             throw new IllegalArgumentException("该类型下仍有 " + usageCount + " 台服务器，无法删除");
         }
         serverTypeRepository.delete(entity);
+    }
+
+    private boolean isAdminUser() {
+        CurrentUser user = SecurityUtils.getUser();
+        if (user == null) return false;
+        if (user.getPermissions() != null && user.getPermissions().contains("*:*:*")) return true;
+        if (user.getRoles() != null) {
+            return user.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getRoleCode()));
+        }
+        return false;
     }
 
     private ServerTypeEntity findEntity(Long id) {

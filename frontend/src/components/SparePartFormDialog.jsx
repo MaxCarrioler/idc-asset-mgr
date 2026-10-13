@@ -2,24 +2,29 @@ import { useState, useEffect, useMemo } from 'react'
 import { Modal, Form, Input, Select, Button } from 'antd'
 import { request, showError, showSuccess } from '../api'
 
-export default function SparePartFormDialog({ open, onClose, itemId, categoryId, categories, onSaved }) {
+export default function SparePartFormDialog({ open, onClose, itemId, initialCategoryId: propInitialCategoryId, categories, onSaved }) {
   const [form] = Form.useForm()
   const [saving, setSaving] = useState(false)
   const [servers, setServers] = useState([])
 
-  const categoryName = useMemo(() => {
-    const matched = categories.find((c) => c.id === Number(categoryId))
-    return matched?.name || ''
-  }, [categories, categoryId])
+  const categoryOptions = useMemo(() =>
+    categories.map(c => ({ label: c.name, value: c.id })),
+  [categories])
+
+  const initialCategoryId = useMemo(() => {
+    if (itemId) return undefined
+    if (propInitialCategoryId) return propInitialCategoryId
+    return categories.length > 0 ? categories[0].id : undefined
+  }, [itemId, propInitialCategoryId, categories])
 
   const defaultValues = { serialNumber: '', manufacturer: '', specSummary: '', location: '', sourceKey: '', remark: '' }
 
-  const resolveSourceKey = (item) => {
+  const resolveSourceKey = (item, serverList) => {
     if (item?.sourceServerId) return `ID:${item.sourceServerId}`
     if (item?.sourceServerSerial === '无') return 'NONE'
     if (item?.sourceServerSerial === '采购') return 'PURCHASE'
     if (item?.sourceServerSerial) {
-      const matched = servers.find((s) => s.serialNumber === item.sourceServerSerial)
+      const matched = serverList.find((s) => s.serialNumber === item.sourceServerSerial)
       if (matched) return `ID:${matched.id}`
     }
     return ''
@@ -43,21 +48,22 @@ export default function SparePartFormDialog({ open, onClose, itemId, categoryId,
     const loadServers = async () => {
       try {
         const data = await request('/api/servers', { params: { page: 1, size: 1000 } })
-        setServers(data?.records || data?.content || data || [])
-      } catch (e) { setServers([]); showError(e) }
+        return data?.records || data?.content || data || []
+      } catch (e) { showError(e); return [] }
     }
-    loadServers().then(async () => {
+    loadServers().then(async (loadedServers) => {
+      setServers(loadedServers)
       if (itemId) {
         try {
           const item = await request(`/api/spare-parts/items/${itemId}`)
           form.setFieldsValue({
-            serialNumber: item.serialNumber || '', manufacturer: item.manufacturer || '',
+            categoryId: item.categoryId, serialNumber: item.serialNumber || '', manufacturer: item.manufacturer || '',
             specSummary: item.specSummary || '', location: item.location || '',
-            sourceKey: resolveSourceKey(item), remark: item.remark || ''
+            sourceKey: resolveSourceKey(item, loadedServers), remark: item.remark || ''
           })
         } catch (e) { showError(e) }
       } else {
-        form.setFieldsValue(defaultValues)
+        form.setFieldsValue({ ...defaultValues, categoryId: initialCategoryId })
       }
     })
   }, [open, itemId])
@@ -67,7 +73,7 @@ export default function SparePartFormDialog({ open, onClose, itemId, categoryId,
     try {
       const source = buildSourcePayload(values.sourceKey)
       const body = {
-        categoryId: Number(categoryId), serialNumber: values.serialNumber.trim(),
+        categoryId: Number(values.categoryId), serialNumber: values.serialNumber.trim(),
         manufacturer: values.manufacturer?.trim(), specSummary: values.specSummary?.trim(),
         location: values.location?.trim(), remark: values.remark?.trim(), ...source
       }
@@ -89,7 +95,9 @@ export default function SparePartFormDialog({ open, onClose, itemId, categoryId,
       footer={[<Button key="cancel" onClick={onClose}>取消</Button>,
         <Button key="save" type="primary" loading={saving} onClick={() => form.submit()}>保存</Button>]}>
       <Form form={form} layout="vertical" onFinish={handleSubmit} initialValues={defaultValues}>
-        <Form.Item label="备件种类"><Input value={categoryName} disabled /></Form.Item>
+        <Form.Item label="备件种类" name="categoryId" rules={[{ required: true, message: '请选择备件种类' }]}>
+          <Select options={categoryOptions} placeholder="请选择种类" />
+        </Form.Item>
         <Form.Item label="序列号" name="serialNumber" rules={[{ required: true, message: '请输入序列号' }]}>
           <Input placeholder="唯一标识，一件备件一条记录" />
         </Form.Item>

@@ -55,6 +55,6 @@ public class HardDiskService extends BaseAccessoryService<HardDiskEntity, HardDi
 
     @Override
     protected void setIdNull(HardDiskEntity entity) {
-        entity.setId(null);
+        entity.setId((Long) null);
     }
 }

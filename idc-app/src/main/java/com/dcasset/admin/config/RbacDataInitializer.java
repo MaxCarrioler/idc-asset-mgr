@@ -71,13 +71,21 @@ public class RbacDataInitializer implements CommandLineRunner {
         insertMenu(11010L, "角色删除", "sys_role_del", null, 11002L, null, 4, "1", now);
         insertMenu(11011L, "角色授权", "sys_role_perm", null, 11002L, null, 5, "1", now);
 
-        // 角色授权：超级管理员全量；配件管理员 查看/审批/驳回/出库；普通用户 查看/提交
+        // 备件统计权限（仅配件管理员及以上）
+        insertMenu(12000L, "备件查看", "spare_part:view", null, null, null, 0, "1", now);
+        insertMenu(12001L, "备件新增/编辑", "spare_part:edit", null, null, null, 1, "1", now);
+        insertMenu(12002L, "备件删除", "spare_part:delete", null, null, null, 2, "1", now);
+        insertMenu(12003L, "种类管理", "spare_part:category_manage", null, null, null, 3, "1", now);
+
+        // 角色授权：超级管理员全量；配件管理员 配件中心+备件管理；普通用户 查看/提交
         long[] adminMenus = {10000, 10001, 10002, 10003, 10004, 10005,
-                11000, 11001, 11002, 11003, 11004, 11005, 11006, 11007, 11008, 11009, 11010, 11011};
+                11000, 11001, 11002, 11003, 11004, 11005, 11006, 11007, 11008, 11009, 11010, 11011,
+                12000, 12001, 12002, 12003};
         for (long menuId : adminMenus) {
             insertRoleMenu(1L, menuId);
         }
-        for (long menuId : new long[]{10000, 10001, 10003, 10004, 10005}) {
+        for (long menuId : new long[]{10000, 10001, 10003, 10004, 10005,
+                12000, 12001, 12002, 12003}) {
             insertRoleMenu(3L, menuId);
         }
         for (long menuId : new long[]{10000, 10001, 10002}) {

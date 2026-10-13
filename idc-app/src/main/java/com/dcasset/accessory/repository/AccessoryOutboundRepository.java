@@ -16,4 +16,8 @@ public interface AccessoryOutboundRepository extends JpaRepository<AccessoryOutb
     Optional<AccessoryOutboundEntity> findFirstBySparePartIdOrderByOutboundTimeDesc(Long sparePartId);
 
     List<AccessoryOutboundEntity> findBySparePartIdInOrderByOutboundTimeDesc(Collection<Long> sparePartIds);
+
+    List<AccessoryOutboundEntity> findBySourceServerId(Long sourceServerId);
+
+    List<AccessoryOutboundEntity> findByTargetServerId(Long targetServerId);
 }

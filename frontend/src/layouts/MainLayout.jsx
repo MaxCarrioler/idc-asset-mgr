@@ -4,8 +4,6 @@ import { Layout, Menu, Tag, Button, Skeleton } from 'antd'
 import {
   MonitorOutlined,
   AppstoreOutlined,
-  BarChartOutlined,
-  DatabaseOutlined,
   InboxOutlined,
   SendOutlined,
   UserOutlined,
@@ -13,6 +11,7 @@ import {
   MenuUnfoldOutlined,
 } from '@ant-design/icons'
 import { useAuth } from '../stores/AuthContext'
+import { SPARE_PART_TYPES } from '../config/accessory'
 
 const { Sider, Content, Header } = Layout
 
@@ -24,10 +23,15 @@ export default function MainLayout() {
 
   const activeMenu = useMemo(() => {
     const p = location.pathname
-    if (/^\/spare-parts\/[^/]+$/.test(p) && p !== '/spare-parts/summary' && p !== '/spare-parts/categories') {
-      return '/spare-parts/summary'
+    if (/^\/spare-parts\/[^/]+\/[^/]+$/.test(p)) {
+      const match = p.match(/^\/spare-parts\/([^/]+)\/[^/]+$/)
+      if (match) return `/spare-parts/${match[1]}`
+    }
+    if (/^\/spare-parts\/[^/]+$/.test(p)) {
+      return p
     }
     if (/^\/servers\/[^/]+\/(accessories|records)$/.test(p)) return '/servers'
+    if (/^\/metadata\/[^/]+$/.test(p)) return p
     return p
   }, [location.pathname])
 
@@ -35,41 +39,36 @@ export default function MainLayout() {
   const roleLabel = (user?.roles || []).join(', ') || '无角色'
 
   const canSeeAccessoryCenter = hasPermission('accessory:transfer:view', 'accessory:transfer:apply')
+  const canSeeSpareParts = hasPermission('spare_part:view')
   const canSeeUserCenter = hasAnyRole('ROLE_ADMIN') || hasPermission('sys_user_view', 'sys_role_view')
   const canSeeRoleMenu = hasAnyRole('ROLE_ADMIN') || hasPermission('sys_role_view')
 
   const menuItems = useMemo(() => {
     const items = [
       {
-        key: '/servers',
+        key: 'serverStats',
         icon: <AppstoreOutlined />,
-        label: '服务器列表'
-      },
-      {
-        key: '/statistics',
-        icon: <BarChartOutlined />,
-        label: '数据统计'
-      },
-      {
-        key: 'metadata',
-        icon: <DatabaseOutlined />,
-        label: '元数据管理',
+        label: '服务器统计',
         children: [
+          { key: '/servers', label: '服务器列表' },
+          { key: '/statistics', label: '数据统计' },
           { key: '/metadata/server-types', label: '服务器类型' },
           { key: '/metadata/cpu-architectures', label: 'CPU 架构' },
-          { key: '/metadata/hard-disk-types', label: '硬盘类型' }
+          { key: '/metadata/hard-disk-types', label: '服务器硬盘类型' }
         ]
-      },
-      {
+      }
+    ]
+
+    if (canSeeSpareParts) {
+      items.push({
         key: 'spareParts',
         icon: <InboxOutlined />,
         label: '备件统计',
         children: [
-          { key: '/spare-parts/summary', label: '统计概览' },
-          { key: '/spare-parts/categories', label: '种类管理' }
+          ...SPARE_PART_TYPES.map(t => ({ key: `/spare-parts/${t.type}`, label: t.label }))
         ]
-      }
-    ]
+      })
+    }
 
     if (canSeeAccessoryCenter) {
       items.push({
@@ -140,7 +139,7 @@ export default function MainLayout() {
           theme="dark"
           mode="inline"
           selectedKeys={[activeMenu]}
-          defaultOpenKeys={['metadata', 'spareParts', 'accessoryCenter', 'userCenter']}
+          defaultOpenKeys={['serverStats', 'spareParts', 'accessoryCenter', 'userCenter']}
           items={menuItems}
           onClick={handleMenuClick}
           style={{ background: '#1f2937', borderRight: 'none' }}

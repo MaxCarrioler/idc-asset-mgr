@@ -1,6 +1,8 @@
 package com.dcasset.server.service;
 
 import com.dcasset.common.dto.CpuArchitectureDTO;
+import com.dcasset.security.CurrentUser;
+import com.dcasset.security.SecurityUtils;
 import com.dcasset.server.entity.CpuArchitectureEntity;
 import com.dcasset.server.repository.CpuArchitectureRepository;
 import com.dcasset.server.repository.ServerRepository;
@@ -72,7 +74,8 @@ public class CpuArchitectureServiceImpl implements CpuArchitectureService {
     @Transactional
     public void delete(Long id) {
         CpuArchitectureEntity entity = findEntity(id);
-        if (Boolean.TRUE.equals(entity.getBuiltIn())) {
+        boolean isAdmin = isAdminUser();
+        if (Boolean.TRUE.equals(entity.getBuiltIn()) && !isAdmin) {
             throw new IllegalArgumentException("内置 CPU 架构不可删除: " + entity.getName());
         }
         long usageCount = serverRepository.countByCpuArchitecture(entity.getCode());
@@ -80,6 +83,16 @@ public class CpuArchitectureServiceImpl implements CpuArchitectureService {
             throw new IllegalArgumentException("该架构下仍有 " + usageCount + " 台服务器，无法删除");
         }
         cpuArchitectureRepository.delete(entity);
+    }
+
+    private boolean isAdminUser() {
+        CurrentUser user = SecurityUtils.getUser();
+        if (user == null) return false;
+        if (user.getPermissions() != null && user.getPermissions().contains("*:*:*")) return true;
+        if (user.getRoles() != null) {
+            return user.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getRoleCode()));
+        }
+        return false;
     }
 
     private CpuArchitectureEntity findEntity(Long id) {

@@ -16,6 +16,8 @@ public class SparePartCategoryDTO {
 
     private String description;
 
+    private String accessoryType;
+
     private Boolean builtIn;
 
     private LocalDateTime createdAt;

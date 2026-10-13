@@ -2,7 +2,9 @@ import { useState, useEffect, useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { Card, Table, Button, Tag, Modal } from 'antd'
 import { request, showError, showSuccess } from '../api'
+import { SPARE_PART_TYPE_MAP } from '../config/accessory'
 import SparePartFormDialog from '../components/SparePartFormDialog'
+import { useAuth } from '../stores/AuthContext'
 
 function statusLabel(status) {
   switch (status) {
@@ -21,8 +23,12 @@ function statusTagType(status) {
 }
 
 export default function SparePartDetail() {
-  const { categoryId } = useParams()
+  const { type, categoryId } = useParams()
   const catId = Number(categoryId)
+  const { hasAnyRole, hasPermission } = useAuth()
+  const isAdmin = hasAnyRole('ROLE_ADMIN')
+  const canEdit = hasPermission('spare_part:edit')
+  const canDelete = hasPermission('spare_part:delete')
 
   const [items, setItems] = useState([])
   const [categories, setCategories] = useState([])
@@ -54,12 +60,17 @@ export default function SparePartDetail() {
   useEffect(() => { loadCategories(); loadItems() }, [catId])
 
   const handleDelete = (row) => {
-    if (row.status === 'OUT' || row.status === 'RESERVED') {
+    if (!isAdmin && (row.status === 'OUT' || row.status === 'RESERVED')) {
       showError(new Error('已出库或已预留的备件不可删除'))
       return
     }
+    const isProtected = row.status === 'OUT' || row.status === 'RESERVED'
     Modal.confirm({
-      title: '提示', content: `确认删除备件「${row.serialNumber}」？`,
+      title: '提示',
+      content: isProtected
+        ? `备件「${row.serialNumber}」当前状态为"${statusLabel(row.status)}"，确认强制删除？`
+        : `确认删除备件「${row.serialNumber}」？`,
+      type: isProtected ? 'warning' : undefined,
       onOk: async () => {
         try {
           await request(`/api/spare-parts/items/${row.id}`, { method: 'DELETE' })
@@ -114,21 +125,28 @@ export default function SparePartDetail() {
     { title: '备注', dataIndex: 'remark', width: 120, render: (v) => v || '-' },
     {
       title: '操作', width: 150, fixed: 'right',
-      render: (_, row) => (
-        <span>
-          <Button type="link" disabled={row.status === 'OUT' || row.status === 'RESERVED'}
-            onClick={() => { setEditingItemId(row.id); setDialogVisible(true) }}>编辑</Button>
-          <Button type="link" danger disabled={row.status === 'OUT' || row.status === 'RESERVED'}
-            onClick={() => handleDelete(row)}>删除</Button>
-        </span>
-      )
+      render: (_, row) => {
+        const locked = row.status === 'OUT' || row.status === 'RESERVED'
+        return (
+          <span>
+            {canEdit && (
+              <Button type="link" disabled={locked}
+                onClick={() => { setEditingItemId(row.id); setDialogVisible(true) }}>编辑</Button>
+            )}
+            {canDelete && (
+              <Button type="link" danger disabled={!isAdmin && locked}
+                onClick={() => handleDelete(row)}>删除</Button>
+            )}
+          </span>
+        )
+      }
     }
   ]
 
   return (
     <div>
       <header style={{ marginBottom: 20 }}>
-        <Link to="/spare-parts" style={{ color: '#1677ff', fontSize: 14 }}>← 返回备件统计</Link>
+        <Link to={`/spare-parts/${type}`} style={{ color: '#1677ff', fontSize: 14 }}>← 返回{type ? (SPARE_PART_TYPE_MAP[type] || '') : ''}备件列表</Link>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginTop: 12 }}>
           <div>
             <h1 style={{ margin: '0 0 8px', fontSize: 24 }}>{typeName} 备件明细</h1>
@@ -137,7 +155,9 @@ export default function SparePartDetail() {
               {reservedCount > 0 && `，已预留 ${reservedCount} 件`}
             </p>
           </div>
-          <Button type="primary" onClick={() => { setEditingItemId(null); setDialogVisible(true) }}>+ 新增备件</Button>
+          {canEdit && (
+            <Button type="primary" onClick={() => { setEditingItemId(null); setDialogVisible(true) }}>+ 新增备件</Button>
+          )}
         </div>
       </header>
 
@@ -149,7 +169,7 @@ export default function SparePartDetail() {
         open={dialogVisible}
         onClose={() => setDialogVisible(false)}
         itemId={editingItemId}
-        categoryId={catId}
+        initialCategoryId={catId}
         categories={categories}
         onSaved={loadItems}
       />

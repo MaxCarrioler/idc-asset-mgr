@@ -4,6 +4,7 @@ import { Card, Table, Button, Tag, Modal, Select, Input, InputNumber, Form, Desc
 import * as XLSX from 'xlsx'
 import { request, showError, showSuccess } from '../api'
 import Permission from '../components/Permission'
+import { useAuth } from '../stores/AuthContext'
 
 const STATUS_MAP = { PENDING: '待审批', APPROVED: '已通过', REJECTED: '已驳回', OUTBOUND: '已出库' }
 function statusLabel(s) { return STATUS_MAP[s] || s || '-' }
@@ -19,6 +20,8 @@ function formatOutboundTime(value) {
 
 export default function AccessoryCenter() {
   const location = useLocation()
+  const { hasAnyRole } = useAuth()
+  const isAdmin = hasAnyRole('ROLE_ADMIN')
   const routeTab = location.pathname.endsWith('/transfers') ? 'transfers' : 'requests'
   const [activeTab, setActiveTab] = useState(routeTab)
 
@@ -248,6 +251,23 @@ export default function AccessoryCenter() {
     })
   }
 
+  const handleDeleteRequest = (row) => {
+    Modal.confirm({
+      title: '删除申请',
+      content: `确认删除申请 #${row.id}？此操作不可恢复。`,
+      okText: '确认删除',
+      okButtonProps: { danger: true },
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await request(`/api/accessory-center/requests/${row.id}`, { method: 'DELETE' })
+          showSuccess('删除成功')
+          await loadRequests()
+        } catch (e) { showError(e) }
+      }
+    })
+  }
+
   // Request table columns
   const requestColumns = [
     { title: 'ID', dataIndex: 'id', width: 70 },
@@ -281,6 +301,9 @@ export default function AccessoryCenter() {
             <Permission require="accessory:transfer:approve">
               <Button type="link" danger onClick={() => revokeApproval(row)}>撤销</Button>
             </Permission>
+          )}
+          {isAdmin && row.status !== 'OUTBOUND' && (
+            <Button type="link" danger onClick={() => handleDeleteRequest(row)}>删除</Button>
           )}
         </span>
       )

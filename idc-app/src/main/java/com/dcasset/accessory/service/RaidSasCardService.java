@@ -55,6 +55,6 @@ public class RaidSasCardService extends BaseAccessoryService<RaidSasCardEntity, 
 
     @Override
     protected void setIdNull(RaidSasCardEntity entity) {
-        entity.setId(null);
+        entity.setId((Long) null);
     }
 }

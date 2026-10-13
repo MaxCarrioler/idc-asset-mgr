@@ -24,4 +24,6 @@ public interface AccessoryTransferService {
     List<AccessoryOutboundDTO> listTransfers();
 
     List<SparePartDTO> listAvailableSpareParts(Long categoryId);
+
+    void deleteRequest(Long id);
 }

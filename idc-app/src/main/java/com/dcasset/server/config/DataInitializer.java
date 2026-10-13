@@ -1,5 +1,11 @@
 package com.dcasset.server.config;
 
+import com.dcasset.accessory.entity.AccessoryOutboundEntity;
+import com.dcasset.accessory.entity.AccessoryTransferRequestEntity;
+import com.dcasset.accessory.entity.SparePartEntity;
+import com.dcasset.accessory.repository.AccessoryOutboundRepository;
+import com.dcasset.accessory.repository.AccessoryTransferRequestRepository;
+import com.dcasset.accessory.repository.SparePartRepository;
 import com.dcasset.server.entity.ServerEntity;
 import com.dcasset.server.entity.ServerOperationRecordEntity;
 import com.dcasset.server.entity.ServerTypeEntity;
@@ -16,6 +22,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 
 @Configuration("serverDataInitializer")
 @RequiredArgsConstructor
@@ -26,6 +33,9 @@ public class DataInitializer {
     private final ServerTypeRepository serverTypeRepository;
     private final CpuArchitectureRepository cpuArchitectureRepository;
     private final HardDiskTypeRepository hardDiskTypeRepository;
+    private final AccessoryTransferRequestRepository transferRequestRepository;
+    private final AccessoryOutboundRepository outboundRepository;
+    private final SparePartRepository sparePartRepository;
 
     @Bean
     CommandLineRunner initData() {
@@ -33,6 +43,7 @@ public class DataInitializer {
             initServerTypes();
             initCpuArchitectures();
             initHardDiskTypes();
+            backfillServerNames();
             if (serverRepository.count() > 0) {
                 return;
             }
@@ -142,5 +153,43 @@ public class DataInitializer {
         record.setChangeReason(reason);
         record.setModifiedAt(time);
         operationRecordRepository.save(record);
+    }
+
+    private void backfillServerNames() {
+        for (ServerEntity server : serverRepository.findAll()) {
+            Long sid = server.getId();
+            String currentName = server.getServerName();
+
+            for (AccessoryTransferRequestEntity req : transferRequestRepository.findByTargetServerId(sid)) {
+                if (!Objects.equals(req.getTargetServerName(), currentName)) {
+                    req.setTargetServerName(currentName);
+                    transferRequestRepository.save(req);
+                }
+            }
+            for (AccessoryOutboundEntity ob : outboundRepository.findBySourceServerId(sid)) {
+                if (!Objects.equals(ob.getSourceServerName(), currentName)) {
+                    ob.setSourceServerName(currentName);
+                    outboundRepository.save(ob);
+                }
+            }
+            for (AccessoryOutboundEntity ob : outboundRepository.findByTargetServerId(sid)) {
+                if (!Objects.equals(ob.getTargetServerName(), currentName)) {
+                    ob.setTargetServerName(currentName);
+                    outboundRepository.save(ob);
+                }
+            }
+            for (SparePartEntity part : sparePartRepository.findBySourceServerId(sid)) {
+                if (!Objects.equals(part.getSourceServerName(), currentName)) {
+                    part.setSourceServerName(currentName);
+                    sparePartRepository.save(part);
+                }
+            }
+            for (SparePartEntity part : sparePartRepository.findByActiveServerId(sid)) {
+                if (!Objects.equals(part.getActiveServerName(), currentName)) {
+                    part.setActiveServerName(currentName);
+                    sparePartRepository.save(part);
+                }
+            }
+        }
     }
 }

@@ -489,4 +489,27 @@ public class AccessoryTransferServiceImpl implements AccessoryTransferService {
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
     }
+
+    @Override
+    @Transactional
+    public void deleteRequest(Long id) {
+        AccessoryTransferRequestEntity entity = requestRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("申请不存在: " + id));
+        String status = entity.getStatus();
+        if (STATUS_OUTBOUND.equals(status)) {
+            throw new IllegalArgumentException("已出库的申请不可删除");
+        }
+        if (STATUS_APPROVED.equals(status)) {
+            for (AccessoryTransferItemEntity item : itemRepository.findByRequestId(id)) {
+                sparePartRepository.findByIdForUpdate(item.getSparePartId()).ifPresent(part -> {
+                    if (SPARE_RESERVED.equals(part.getStatus())) {
+                        part.setStatus(SPARE_IN_STOCK);
+                        sparePartRepository.save(part);
+                    }
+                });
+            }
+        }
+        itemRepository.deleteByRequestId(id);
+        requestRepository.delete(entity);
+    }
 }

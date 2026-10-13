@@ -8,13 +8,18 @@ import com.dcasset.accessory.repository.SparePartCategoryRepository;
 import com.dcasset.accessory.repository.SparePartRepository;
 import com.dcasset.common.dto.SparePartDTO;
 import com.dcasset.common.dto.SparePartSummaryDTO;
+import com.dcasset.common.dto.SparePartTypeSummaryDTO;
+import com.dcasset.security.CurrentUser;
+import com.dcasset.security.SecurityUtils;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -53,6 +58,103 @@ public class SparePartsServiceImpl implements SparePartsService {
                             items.size(),
                             outCount
                     );
+                })
+                .collect(Collectors.toList());
+    }
+
+    private static final LinkedHashMap<String, String> TYPE_LABELS = new LinkedHashMap<>();
+    static {
+        TYPE_LABELS.put("cpu", "CPU");
+        TYPE_LABELS.put("memory", "内存");
+        TYPE_LABELS.put("hard-disk", "硬盘");
+        TYPE_LABELS.put("network-card", "网卡");
+        TYPE_LABELS.put("raid-sas-card", "RAID/SAS卡");
+        TYPE_LABELS.put("hba-card", "HBA卡");
+        TYPE_LABELS.put("power-module", "电源模块");
+    }
+
+    @Override
+    public List<SparePartTypeSummaryDTO> getTypeSummaries() {
+        List<SparePartCategoryEntity> allCategories = categoryRepository.findAll();
+        Map<Long, List<SparePartEntity>> itemsByCategory = sparePartRepository.findAll().stream()
+                .collect(Collectors.groupingBy(SparePartEntity::getCategoryId));
+
+        Map<String, int[]> agg = new LinkedHashMap<>();
+        for (String type : TYPE_LABELS.keySet()) {
+            agg.put(type, new int[]{0, 0, 0});
+        }
+        for (SparePartCategoryEntity cat : allCategories) {
+            String type = cat.getAccessoryType();
+            if (type == null || !agg.containsKey(type)) continue;
+            int[] counts = agg.get(type);
+            List<SparePartEntity> items = itemsByCategory.getOrDefault(cat.getId(), List.of());
+            counts[0] += (int) items.stream().filter(p -> p.getStatus() == null || "IN_STOCK".equals(p.getStatus())).count();
+            counts[1] += (int) items.stream().filter(p -> "OUT".equals(p.getStatus())).count();
+            counts[2]++;
+        }
+
+        List<SparePartTypeSummaryDTO> result = new ArrayList<>();
+        for (Map.Entry<String, String> entry : TYPE_LABELS.entrySet()) {
+            int[] counts = agg.get(entry.getKey());
+            result.add(new SparePartTypeSummaryDTO(entry.getKey(), entry.getValue(), counts[0], counts[1], counts[2]));
+        }
+        return result;
+    }
+
+    @Override
+    public List<SparePartSummaryDTO> listByType(String accessoryType) {
+        List<SparePartCategoryEntity> categories = categoryRepository.findByAccessoryTypeOrderByIdAsc(accessoryType);
+        Map<Long, List<SparePartEntity>> itemsByCategory = sparePartRepository.findAll().stream()
+                .collect(Collectors.groupingBy(SparePartEntity::getCategoryId));
+
+        return categories.stream()
+                .map(category -> {
+                    List<SparePartEntity> items = itemsByCategory.getOrDefault(category.getId(), List.of());
+                    int inStock = (int) items.stream()
+                            .filter(p -> p.getStatus() == null || "IN_STOCK".equals(p.getStatus()))
+                            .count();
+                    int outCount = (int) items.stream()
+                            .filter(p -> "OUT".equals(p.getStatus()))
+                            .count();
+                    return new SparePartSummaryDTO(
+                            category.getId(),
+                            category.getCode(),
+                            category.getName(),
+                            inStock,
+                            items.size(),
+                            outCount
+                    );
+                })
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SparePartDTO> listItemsByType(String accessoryType) {
+        List<SparePartCategoryEntity> categories = categoryRepository.findByAccessoryTypeOrderByIdAsc(accessoryType);
+        if (categories.isEmpty()) {
+            return List.of();
+        }
+        List<Long> categoryIds = categories.stream().map(SparePartCategoryEntity::getId).collect(Collectors.toList());
+        Map<Long, String> categoryNameMap = categories.stream()
+                .collect(Collectors.toMap(SparePartCategoryEntity::getId, SparePartCategoryEntity::getName));
+
+        List<SparePartEntity> allParts = sparePartRepository.findAll().stream()
+                .filter(p -> categoryIds.contains(p.getCategoryId()))
+                .collect(Collectors.toList());
+
+        Map<Long, AccessoryOutboundEntity> latestOutbound = latestOutboundBySparePartId(
+                allParts.stream().map(SparePartEntity::getId).collect(Collectors.toList()));
+
+        return allParts.stream()
+                .map(part -> {
+                    AccessoryOutboundEntity outbound = latestOutbound.get(part.getId());
+                    if (outbound != null) {
+                        syncActiveServerFromOutbound(part, outbound);
+                    }
+                    SparePartDTO dto = toDto(part);
+                    dto.setCategoryName(categoryNameMap.get(part.getCategoryId()));
+                    return dto;
                 })
                 .collect(Collectors.toList());
     }
@@ -114,13 +216,28 @@ public class SparePartsServiceImpl implements SparePartsService {
     public void delete(Long id) {
         SparePartEntity entity = findEntity(id);
         String status = entity.getStatus();
+        boolean isAdmin = isAdminUser();
         if ("RESERVED".equals(status)) {
-            throw new IllegalArgumentException("备件已被调取申请预留，无法删除：" + entity.getSerialNumber());
+            if (!isAdmin) {
+                throw new IllegalArgumentException("备件已被调取申请预留，无法删除：" + entity.getSerialNumber());
+            }
         }
         if ("OUT".equals(status)) {
-            throw new IllegalArgumentException("备件已出库装机、存在流转记录，无法删除：" + entity.getSerialNumber());
+            if (!isAdmin) {
+                throw new IllegalArgumentException("备件已出库装机、存在流转记录，无法删除：" + entity.getSerialNumber());
+            }
         }
         sparePartRepository.delete(entity);
+    }
+
+    private boolean isAdminUser() {
+        CurrentUser user = SecurityUtils.getUser();
+        if (user == null) return false;
+        if (user.getPermissions() != null && user.getPermissions().contains("*:*:*")) return true;
+        if (user.getRoles() != null) {
+            return user.getRoles().stream().anyMatch(r -> "ROLE_ADMIN".equals(r.getRoleCode()));
+        }
+        return false;
     }
 
     private SparePartCategoryEntity findCategory(Long categoryId) {

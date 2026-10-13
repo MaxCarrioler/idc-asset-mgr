@@ -55,6 +55,6 @@ public class HbaCardService extends BaseAccessoryService<HbaCardEntity, HbaCardD
 
     @Override
     protected void setIdNull(HbaCardEntity entity) {
-        entity.setId(null);
+        entity.setId((Long) null);
     }
 }

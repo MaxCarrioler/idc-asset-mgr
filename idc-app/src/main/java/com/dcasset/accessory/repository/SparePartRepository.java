@@ -23,4 +23,8 @@ public interface SparePartRepository extends JpaRepository<SparePartEntity, Long
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from SparePartEntity p where p.id = :id")
     Optional<SparePartEntity> findByIdForUpdate(@Param("id") Long id);
+
+    List<SparePartEntity> findBySourceServerId(Long sourceServerId);
+
+    List<SparePartEntity> findByActiveServerId(Long activeServerId);
 }

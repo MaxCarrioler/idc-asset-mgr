@@ -167,3 +167,15 @@ export const ACCESSORY_CONFIG = {
 }
 
 export const ACCESSORY_TYPES = Object.keys(ACCESSORY_CONFIG)
+
+export const SPARE_PART_TYPES = [
+  { type: 'cpu', label: 'CPU' },
+  { type: 'memory', label: '内存' },
+  { type: 'hard-disk', label: '硬盘' },
+  { type: 'network-card', label: '网卡' },
+  { type: 'raid-sas-card', label: 'RAID/SAS卡' },
+  { type: 'hba-card', label: 'HBA卡' },
+  { type: 'power-module', label: '电源模块' },
+]
+
+export const SPARE_PART_TYPE_MAP = Object.fromEntries(SPARE_PART_TYPES.map(t => [t.type, t.label]))

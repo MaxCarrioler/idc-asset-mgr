@@ -55,6 +55,6 @@ public class MemoryService extends BaseAccessoryService<MemoryEntity, MemoryDTO>
 
     @Override
     protected void setIdNull(MemoryEntity entity) {
-        entity.setId(null);
+        entity.setId((Long) null);
     }
 }

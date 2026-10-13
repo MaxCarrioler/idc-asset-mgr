@@ -55,6 +55,6 @@ public class CpuService extends BaseAccessoryService<CpuEntity, CpuDTO> {
 
     @Override
     protected void setIdNull(CpuEntity entity) {
-        entity.setId(null);
+        entity.setId((Long) null);
     }
 }

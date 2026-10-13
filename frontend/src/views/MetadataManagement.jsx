@@ -2,12 +2,15 @@ import { useState, useEffect, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { Card, Table, Button, Tag, Modal } from 'antd'
 import { request, showError, showSuccess } from '../api'
+import { useAuth } from '../stores/AuthContext'
 import ServerTypeFormDialog from '../components/ServerTypeFormDialog'
 import CpuArchitectureFormDialog from '../components/CpuArchitectureFormDialog'
 import HardDiskTypeFormDialog from '../components/HardDiskTypeFormDialog'
 
 export default function MetadataManagement() {
   const location = useLocation()
+  const { hasAnyRole } = useAuth()
+  const isAdmin = hasAnyRole('ROLE_ADMIN')
   const activeTab = useMemo(() => {
     if (location.pathname.endsWith('/cpu-architectures')) return 'cpuArchitectures'
     if (location.pathname.endsWith('/hard-disk-types')) return 'hardDiskTypes'
@@ -109,7 +112,7 @@ export default function MetadataManagement() {
       render: (_, row) => (
         <span>
           <Button type="link" onClick={() => { setEditingTypeId(row.id); setTypeDialogVisible(true) }}>编辑</Button>
-          {!row.builtIn && <Button type="link" danger onClick={() => handleDeleteType(row)}>删除</Button>}
+          {(!row.builtIn || isAdmin) && <Button type="link" danger onClick={() => handleDeleteType(row)}>删除</Button>}
         </span>
       )
     }
@@ -126,7 +129,7 @@ export default function MetadataManagement() {
       render: (_, row) => (
         <span>
           <Button type="link" onClick={() => { setEditingArchId(row.id); setArchDialogVisible(true) }}>编辑</Button>
-          {!row.builtIn && <Button type="link" danger onClick={() => handleDeleteArch(row)}>删除</Button>}
+          {(!row.builtIn || isAdmin) && <Button type="link" danger onClick={() => handleDeleteArch(row)}>删除</Button>}
         </span>
       )
     }
@@ -143,7 +146,7 @@ export default function MetadataManagement() {
       render: (_, row) => (
         <span>
           <Button type="link" onClick={() => { setEditingDiskTypeId(row.id); setDiskTypeDialogVisible(true) }}>编辑</Button>
-          {!row.builtIn && <Button type="link" danger onClick={() => handleDeleteDiskType(row)}>删除</Button>}
+          {(!row.builtIn || isAdmin) && <Button type="link" danger onClick={() => handleDeleteDiskType(row)}>删除</Button>}
         </span>
       )
     }

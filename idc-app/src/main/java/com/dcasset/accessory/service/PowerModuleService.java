@@ -55,6 +55,6 @@ public class PowerModuleService extends BaseAccessoryService<PowerModuleEntity, 
 
     @Override
     protected void setIdNull(PowerModuleEntity entity) {
-        entity.setId(null);
+        entity.setId((Long) null);
     }
 }
